@@ -10,7 +10,7 @@ import (
 // setup etcd 0.4.x cluster and add some values -- shutdown and start etcd
 // 2.0.x binary -- does it fallback to etcd 0.4.x binary and retain
 // data?
-func etcdFallback(cluster platform.Cluster) error {
+func Fallback(cluster platform.Cluster) error {
 	const (
 		testKey   = "foo"
 		testValue = "etcdFallback"
@@ -87,8 +87,6 @@ func etcdFallback(cluster platform.Cluster) error {
 	if value != testValue {
 		return fmt.Errorf("error getting previously set key: got %v instead of %v", value, testValue)
 	}
-
-	fmt.Fprintf(os.Stderr, "etcdFallback test completed sucessfully!\n")
 
 	return nil
 }

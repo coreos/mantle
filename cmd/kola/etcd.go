@@ -56,9 +56,9 @@ func runEtcd(args []string) int {
 			fmt.Fprintf(os.Stderr, "%v failed: %v\n", t.Name, err)
 			return 1
 		}
-		fmt.Printf("Test %v ran successfully\n", t.Name)
+		fmt.Printf("test %v ran successfully\n", t.Name)
 	}
-	fmt.Fprintf(os.Stderr, "etcd tests ran successfully!\n")
+	fmt.Fprintf(os.Stderr, "All etcd tests ran successfully!\n")
 	return 0
 }
 

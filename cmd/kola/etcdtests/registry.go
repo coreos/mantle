@@ -21,10 +21,10 @@ import "github.com/coreos/mantle/platform"
 var Tests = []Test{
 	// test etcd fallback
 	Test{
-		Run:         etcdFallback,
+		Run:         Fallback,
 		Discovery:   true,
 		ClusterSize: 3,
-		Name:        "etcdFallback",
+		Name:        "etcd fallback",
 		CloudConfig: `#cloud-config
 write_files:
   - path: /run/systemd/system/etcd.service.d/30-exec.conf
@@ -32,7 +32,7 @@ write_files:
     content: |
       [Service]
       ExecStart=
-      ExecStart=/usr/libexec/etcd/internal_versions/1
+      ExecStart=/usr/libexec/etcd/internal_versions/1/etcd
 
 coreos:
   etcd:
@@ -44,10 +44,10 @@ coreos:
 
 	// test etcd discovery with 0.4.7
 	Test{
-		Run:         etcdDiscovery,
+		Run:         Discovery,
 		Discovery:   true,
 		ClusterSize: 3,
-		Name:        "etcdDiscovery--version1",
+		Name:        "etcd discovery-version1",
 		CloudConfig: `#cloud-config
 write_files:
   - path: /run/systemd/system/etcd.service.d/30-exec.conf
@@ -67,10 +67,10 @@ coreos:
 
 	// test etcd discovery with 2.0 with new cloud config
 	Test{
-		Run:         etcdDiscovery,
+		Run:         Discovery,
 		Discovery:   true,
 		ClusterSize: 3,
-		Name:        "etcdDiscovery--version2--oldconfig",
+		Name:        "etcdDiscovery-version2-oldconfig",
 		CloudConfig: `#cloud-config
 write_files:
   - path: /run/systemd/system/etcd.service.d/30-exec.conf
@@ -90,10 +90,10 @@ coreos:
 
 	// test etcd discovery with 2.0 but with old cloud config
 	Test{
-		Run:         etcdDiscovery,
+		Run:         Discovery,
 		Discovery:   true,
 		ClusterSize: 3,
-		Name:        "etcdDiscovery--version2",
+		Name:        "etcdDiscovery-version2",
 		CloudConfig: `#cloud-config
 write_files:
   - path: /run/systemd/system/etcd.service.d/30-exec.conf

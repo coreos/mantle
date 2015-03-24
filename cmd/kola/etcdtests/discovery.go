@@ -2,14 +2,11 @@ package etcdtests
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/coreos/mantle/platform"
 )
 
-func etcdDiscovery(cluster platform.Cluster) error {
-	csize := len(cluster.Machines())
-
+func Discovery(cluster platform.Cluster) error {
 	// get journalctl -f from all machines before starting
 	for _, m := range cluster.Machines() {
 		if err := m.StartJournal(); err != nil {
@@ -18,7 +15,7 @@ func etcdDiscovery(cluster platform.Cluster) error {
 	}
 
 	// start etcd cluster
-	err = startEtcd(cluster)
+	err := startEtcd(cluster)
 	if err != nil {
 		return err
 	}
@@ -29,6 +26,5 @@ func etcdDiscovery(cluster platform.Cluster) error {
 		return fmt.Errorf("discovery failed health check: %v", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "etcd Discovery succeeeded!\n")
 	return nil
 }
