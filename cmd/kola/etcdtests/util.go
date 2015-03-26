@@ -85,7 +85,6 @@ func replaceEtcdBin(cluster platform.Cluster, oldv, newv string) error {
 	// escape file path forward-slashes for sed command
 	oldv = strings.Replace(oldv, "/", `\/`, -1)
 	newv = strings.Replace(newv, "/", `\/`, -1)
-	fmt.Println("%v \n%v\n", oldv, newv)
 
 	for _, m := range cluster.Machines() {
 		// first err collector

@@ -19,6 +19,29 @@ import "github.com/coreos/mantle/platform"
 //register new tests here
 // "$name" and "$discovery" are substituted in the cloud config during cluster creation
 var Tests = []Test{
+	// test etcd migration
+	Test{
+		Run:         Migrate,
+		Discovery:   true,
+		ClusterSize: 3,
+		Name:        "etcd migrate",
+		CloudConfig: `#cloud-config
+write_files:
+  - path: /run/systemd/system/etcd.service.d/30-exec.conf
+    permissions: 0644
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/libexec/etcd/internal_versions/1/etcd
+
+coreos:
+  etcd:
+    name: $name
+    discovery: $discovery
+    addr: $public_ipv4:4001
+    peer-addr: $private_ipv4:7001`,
+	},
+
 	// test etcd fallback
 	Test{
 		Run:         Fallback,
