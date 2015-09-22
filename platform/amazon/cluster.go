@@ -12,13 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package platform
+package amazon
 
 import (
 	"encoding/base64"
 	"fmt"
 	"net"
 	"time"
+
+	"github.com/coreos/mantle/network"
+	"github.com/coreos/mantle/platform"
+	"github.com/coreos/mantle/util"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -172,7 +176,7 @@ func (ac *awsCluster) NewMachine(userdata string) (Machine, error) {
 		return nil, err
 	}
 
-	mach := &awsMachine{
+	mach := &AWSMachine{
 		cluster: ac,
 		mach:    insts.Reservations[0].Instances[0],
 	}
