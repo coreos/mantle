@@ -129,14 +129,18 @@ func Proxy(c platform.TestCluster) error {
 		return fmt.Errorf("copyFile: %s", err)
 	}
 
-	_, err = proxy.SSH("fleetctl start /home/core/hello.service")
-	if err != nil {
-		return fmt.Errorf("fleetctl start: %s", err)
-	}
+	var retryFuncs []func() error
+
+	retryFuncs = append(retryFuncs, func() error {
+		_, err = proxy.SSH("fleetctl start /home/core/hello.service")
+		if err != nil {
+			return fmt.Errorf("fleetctl start: %s", err)
+		}
+		return nil
+	})
 
 	var status []byte
-
-	checker := func() error {
+	retryFuncs = append(retryFuncs, func() error {
 		status, err = proxy.SSH("fleetctl list-units -l -fields active -no-legend")
 		if err != nil {
 			return fmt.Errorf("fleetctl list-units: %s", err)
@@ -147,10 +151,12 @@ func Proxy(c platform.TestCluster) error {
 		}
 
 		return nil
-	}
+	})
 
-	if err := util.Retry(5, 1*time.Second, checker); err != nil {
-		return fmt.Errorf("fleetctl start failed: %v", err)
+	for _, retry := range retryFuncs {
+		if err := util.Retry(5, 2*time.Second, retry); err != nil {
+			return err
+		}
 	}
 
 	return nil
