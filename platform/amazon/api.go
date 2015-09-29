@@ -34,28 +34,24 @@ type AWSAPI struct {
 	ec2api *ec2.EC2
 
 	// Region to do AWS operations in.
-	region string
-
-	// S3 bucket name used for S3 operations.
-	s3bucket string
+	region Region
 
 	// A description prefix attached to each request
 	shortDescription string
 }
 
-func NewAWSAPI(region, bucket string) (*AWSAPI, error) {
+func NewAWSAPI(region Region) (*AWSAPI, error) {
 	creds := credentials.NewEnvCredentials()
 	if _, err := creds.Get(); err != nil {
 		return nil, fmt.Errorf("no AWS credentials provided: %v", err)
 	}
 
-	awsconfig := aws.NewConfig().WithCredentials(creds).WithRegion(region)
+	awsconfig := aws.NewConfig().WithCredentials(creds).WithRegion(region.String())
 
 	api := &AWSAPI{
-		s3api:    s3.New(awsconfig),
-		ec2api:   ec2.New(awsconfig),
-		region:   region,
-		s3bucket: bucket,
+		s3api:  s3.New(awsconfig),
+		ec2api: ec2.New(awsconfig),
+		region: region,
 	}
 
 	return api, nil

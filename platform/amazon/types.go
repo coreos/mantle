@@ -25,7 +25,7 @@ var (
 	ErrInvalidVolumeID     = errors.New("invalid volume ID")
 	ErrInvalidSnapshotID   = errors.New("invalid snapshot ID")
 	ErrInvalidAMIID        = errors.New("invalid ami ID")
-	ErrInvalidAMIID        = errors.New("invalid instance ID")
+	ErrInvalidInstanceID   = errors.New("invalid instance ID")
 )
 
 // Region is an AWS region name.
@@ -198,7 +198,7 @@ func (ii InstanceID) String() string {
 }
 
 func (ii InstanceID) Set(instanceid string) error {
-	if !strings.HasPrefix(instanceid, "ami-") {
+	if !strings.HasPrefix(instanceid, "i-") {
 		return ErrInvalidInstanceID
 	}
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"io"
+	"net/url"
 )
 
 type ByteRange struct {
@@ -46,10 +47,10 @@ type Manifest struct {
 	Import          Import   `xml:"import"`
 }
 
-func GenerateManifest(typ, part0url string, size int64) (io.Reader, error) {
-	u := part0url
+func GenerateManifest(format VolumeFormat, part0 *url.URL, size int64) (io.Reader, error) {
+	u := part0.String()
 
-	part0 := Part{
+	part := Part{
 		Index: 0,
 		ByteRange: ByteRange{
 			Start: 0,
@@ -63,7 +64,7 @@ func GenerateManifest(typ, part0url string, size int64) (io.Reader, error) {
 
 	manifest := &Manifest{
 		Version:         "2010-11-15",
-		FileFormat:      typ,
+		FileFormat:      format.String(),
 		ImporterName:    "plume",
 		ImporterVersion: "1.0.0",
 		ImporterRelease: "2015-09-22",
@@ -74,7 +75,7 @@ func GenerateManifest(typ, part0url string, size int64) (io.Reader, error) {
 			Parts: Parts{
 				Count: 1,
 				Parts: []Part{
-					part0,
+					part,
 				},
 			},
 		},

@@ -25,6 +25,7 @@ import (
 
 var (
 	// Kernel images used for CoreOS PV AMIs.
+	// See http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/UserProvidedKernels.html#AmazonKernelImageIDs for details.
 	akiids = map[string]string{
 		"us-east-1":      "aki-919dcaf8",
 		"us-west-1":      "aki-880531cd",
@@ -38,14 +39,14 @@ var (
 	}
 )
 
-func (a *AWSAPI) ImportVolume(manifestURL, format string, volumeSize int64) (string, error) {
+func (a *AWSAPI) ImportVolume(manifestURL string, format VolumeFormat, volumeSize int64) (*VolumeID, error) {
 	// TODO(mischief): ensure this lands on gp2 (ssd), not standard storage
 	ami := &ec2.ImportVolumeInput{
-		AvailabilityZone: aws.String(a.region + "a"),
+		AvailabilityZone: aws.String(a.region.String() + "a"),
 		Description:      &a.shortDescription,
 		Image: &ec2.DiskImageDetail{
 			Bytes:             &volumeSize,
-			Format:            &format,
+			Format:            aws.String(format.String()),
 			ImportManifestUrl: &manifestURL,
 		},
 		Volume: &ec2.VolumeDetail{
@@ -55,9 +56,8 @@ func (a *AWSAPI) ImportVolume(manifestURL, format string, volumeSize int64) (str
 
 	res, err := a.ec2api.ImportVolume(ami)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-
 
 	for {
 		convs := &ec2.DescribeConversionTasksInput{
@@ -68,7 +68,7 @@ func (a *AWSAPI) ImportVolume(manifestURL, format string, volumeSize int64) (str
 
 		convres, err := a.ec2api.DescribeConversionTasks(convs)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		if len(convres.ConversionTasks) > 0 {
@@ -84,10 +84,11 @@ func (a *AWSAPI) ImportVolume(manifestURL, format string, volumeSize int64) (str
 					// get volume id
 					v := st.ImportVolume
 					if v != nil && v.Volume.Id != nil {
-						return *v.Volume.Id, nil
+						vid := VolumeID(*v.Volume.Id)
+						return &vid, nil
 					}
 
-					return "", fmt.Errorf("no volume id")
+					return nil, err
 				}
 			}
 		}
@@ -97,15 +98,15 @@ func (a *AWSAPI) ImportVolume(manifestURL, format string, volumeSize int64) (str
 }
 
 // CreateSnapshot takes a volume id and returns a snapshot id.
-func (a *AWSAPI) CreateSnapshot(volume string) (string, error) {
+func (a *AWSAPI) CreateSnapshot(vid *VolumeID) (*SnapshotID, error) {
 	vi := &ec2.CreateSnapshotInput{
 		Description: &a.shortDescription,
-		VolumeId:    &volume,
+		VolumeId:    aws.String(vid.String()),
 	}
 
 	snap, err := a.ec2api.CreateSnapshot(vi)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	snapid := snap.SnapshotId
@@ -119,7 +120,7 @@ func (a *AWSAPI) CreateSnapshot(volume string) (string, error) {
 
 		snaps, err := a.ec2api.DescribeSnapshots(ds)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		// XXX: check pointers
@@ -127,17 +128,19 @@ func (a *AWSAPI) CreateSnapshot(volume string) (string, error) {
 
 		switch *snap.State {
 		case "pending":
+			// keep waiting
 		case "completed":
-			return *snap.SnapshotId, nil
+			sid := SnapshotID(*snap.SnapshotId)
+			return &sid, nil
 		case "error":
-			return "", fmt.Errorf("failed creating snapshot: %s", *snap.StateMessage)
+			return nil, fmt.Errorf("failed creating snapshot: %s", *snap.StateMessage)
 		}
 
 		time.Sleep(10 * time.Second)
 	}
 }
 
-func (a *AWSAPI) RegisterImage(name, snap string, hvm bool) (string, error) {
+func (a *AWSAPI) RegisterImage(name string, sid *SnapshotID, hvm bool) (*AMIID, error) {
 	ri := &ec2.RegisterImageInput{
 		Architecture: aws.String("x86_64"),
 		BlockDeviceMappings: []*ec2.BlockDeviceMapping{
@@ -146,7 +149,7 @@ func (a *AWSAPI) RegisterImage(name, snap string, hvm bool) (string, error) {
 				DeviceName: aws.String("/dev/xvda"),
 				Ebs: &ec2.EbsBlockDevice{
 					DeleteOnTermination: aws.Bool(true),
-					SnapshotId:          &snap,
+					SnapshotId:          aws.String(sid.String()),
 				},
 			},
 			// ephemeral volume
@@ -169,32 +172,32 @@ func (a *AWSAPI) RegisterImage(name, snap string, hvm bool) (string, error) {
 		ri.BlockDeviceMappings[0].DeviceName = aws.String("/dev/sda")
 		ri.BlockDeviceMappings[1].DeviceName = aws.String("/dev/sdb")
 		// XXX: check that kernel exists
-		ri.KernelId = aws.String(akiids[a.region])
+		ri.KernelId = aws.String(akiids[a.region.String()])
 		ri.RootDeviceName = aws.String("/dev/sda")
 		ri.VirtualizationType = aws.String("paravirtual")
 	}
 
 	ami, err := a.ec2api.RegisterImage(ri)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return *ami.ImageId, nil
+	amiid := AMIID(*ami.ImageId)
+
+	return &amiid, nil
 }
 
-// ImageType returns a EC2 image format name based on the path p.
-func ImageType(p string) (typ string, err error) {
+// ImageType returns a EC2 image format name derived from the path p.
+func ImageType(p string) (VolumeFormat, error) {
 	ext := path.Ext(p)
 	switch ext {
 	case ".bin":
-		typ = "RAW"
+		return VolumeFormatRAW, nil
 	case ".vmdk":
-		typ = "VMDK"
+		return VolumeFormatVMDK, nil
 	case ".vhd":
-		typ = "VHD"
-	default:
-		return "", fmt.Errorf("unrecognized image type %q", ext)
+		return VolumeFormatVHD, nil
 	}
 
-	return typ, nil
+	return "", ErrInvalidVolumeFormat
 }

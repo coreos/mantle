@@ -15,25 +15,32 @@
 package amazon
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"net/url"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
 
-func (a *AWSAPI) S3Put(data io.Reader, key string, overwrite bool) (string, error) {
+var ErrS3ObjectExists = errors.New("s3 object already exists")
+
+// S3Put reads data and uploads it to the S3 bucket, and stores it in key. If
+// overwrite is true, existing data will be overwritten, otherwise an error
+// will be returned if it exists. S3Put returns a URL that can be used to
+// access the uploaded data, or an error on failure.
+func (a *AWSAPI) S3Put(data io.Reader, bucket Bucket, key string, overwrite bool) (*url.URL, error) {
 	if !overwrite {
 		// check if object exists first
 		_, err := a.s3api.HeadObject(&s3.HeadObjectInput{
-			Bucket: &a.s3bucket,
+			Bucket: aws.String(bucket.String()),
 			Key:    &key,
 		})
 
 		if err == nil {
-			// object exists - return the old data.
-			return fmt.Sprintf("https://%s.s3.amazonaws.com/%s", a.s3bucket, key), nil
+			return nil, ErrS3ObjectExists
 		}
 	}
 
@@ -46,25 +53,37 @@ func (a *AWSAPI) S3Put(data io.Reader, key string, overwrite bool) (string, erro
 	upload := &s3manager.UploadInput{
 		// XXX: should be private?
 		ACL:    aws.String("public-read"),
-		Bucket: &a.s3bucket,
+		Bucket: aws.String(bucket.String()),
 		Key:    &key,
 		Body:   data,
 	}
 
 	_, err := s3uploader.Upload(upload)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return fmt.Sprintf("https://%s.s3.amazonaws.com/%s", a.s3bucket, key), nil
+	return S3ObjectUrl(bucket, key), nil
 }
 
-func (a *AWSAPI) S3Delete(key string) error {
+// S3Delete deletes the object key in the S3 bucket.
+func (a *AWSAPI) S3Delete(bucket Bucket, key string) error {
 	di := &s3.DeleteObjectInput{
-		Bucket: &a.s3bucket,
+		Bucket: aws.String(bucket.String()),
 		Key:    &key,
 	}
 
 	_, err := a.s3api.DeleteObject(di)
 	return err
+}
+
+// S3ObjectUrl constructs a URL that can access the key in the S3 bucket.
+func S3ObjectUrl(bucket Bucket, key string) *url.URL {
+	u := &url.URL{
+		Scheme: "https",
+		Host:   fmt.Sprintf("%s.s3.amazonaws.com", bucket),
+		Path:   key,
+	}
+
+	return u
 }
