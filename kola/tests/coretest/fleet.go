@@ -8,6 +8,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/coreos/mantle/util"
 )
 
 const (
@@ -46,14 +48,22 @@ func init() {
 // TestFleetctlListMachines tests that 'fleetctl list-machines' works
 // and print itself out at least.
 func TestFleetctlListMachines() error {
-	stdout, stderr, err := Run(fleetctlBinPath, "list-machines", "--no-legend")
-	if err != nil {
-		return fmt.Errorf("fleetctl list-machines failed with error: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	retryFunc := func() error {
+		stdout, stderr, err := Run(fleetctlBinPath, "list-machines", "--no-legend")
+		if err != nil {
+			return fmt.Errorf("fleetctl list-machines failed with error: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+		}
+
+		stdout = strings.TrimSpace(stdout)
+		if len(strings.Split(stdout, "\n")) == 0 {
+			return fmt.Errorf("Failed listing out at least one machine\nstdout: %s", stdout)
+		}
+		return nil
 	}
 
-	stdout = strings.TrimSpace(stdout)
-	if len(strings.Split(stdout, "\n")) == 0 {
-		return fmt.Errorf("Failed listing out at least one machine\nstdout: %s", stdout)
+	err := util.Retry(10, 5*time.Second, retryFunc)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -75,19 +85,36 @@ func TestFleetctlRunService() error {
 
 	defer timeoutFleetctl("destroy", serviceFile.Name())
 
-	stdout, stderr, err := timeoutFleetctl("start", serviceFile.Name())
-	if err != nil {
-		return fmt.Errorf("fleetctl start failed with error: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
-	}
+	var retryFuncs []func() error
+	retryFuncs = append(retryFuncs, func() error {
+		stdout, stderr, err := timeoutFleetctl("start", serviceFile.Name())
+		if err != nil {
+			return fmt.Errorf("fleetctl start failed with error: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+		}
+		return nil
+	})
 
-	stdout, stderr, err = timeoutFleetctl("unload", serviceName)
-	if err != nil {
-		return fmt.Errorf("fleetctl unload failed with error: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
-	}
+	retryFuncs = append(retryFuncs, func() error {
+		stdout, stderr, err := timeoutFleetctl("unload", serviceName)
+		if err != nil {
+			return fmt.Errorf("fleetctl unload failed with error: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+		}
+		return nil
+	})
 
-	stdout, stderr, err = timeoutFleetctl("destroy", serviceName)
-	if err != nil {
-		return fmt.Errorf("fleetctl destroy failed with error: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	retryFuncs = append(retryFuncs, func() error {
+		stdout, stderr, err := timeoutFleetctl("destroy", serviceName)
+		if err != nil {
+			return fmt.Errorf("fleetctl destroy failed with error: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+		}
+		return nil
+	})
+
+	for _, retry := range retryFuncs {
+		err := util.Retry(10, 5*time.Second, retry)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
