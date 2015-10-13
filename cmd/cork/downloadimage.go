@@ -18,9 +18,11 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/coreos/mantle/Godeps/_workspace/src/github.com/spf13/cobra"
 	"github.com/coreos/mantle/sdk"
+	"github.com/coreos/mantle/util"
 )
 
 var (
@@ -34,6 +36,7 @@ var (
 	downloadImageCacheDir     string
 	downloadImagePrefix       string
 	downloadImageVerify       bool
+	downloadImageRetries      int
 	downloadImagePlatformList platformList
 )
 
@@ -45,7 +48,9 @@ func init() {
 	downloadImageCmd.Flags().StringVar(&downloadImagePrefix,
 		"image-prefix", "coreos_production", "image filename prefix")
 	downloadImageCmd.Flags().BoolVar(&downloadImageVerify,
-		"verify", true, "verify")
+		"verify", true, "verify image signature")
+	downloadImageCmd.Flags().IntVar(&downloadImageRetries,
+		"retries", 0, "re-attempt download this many times on failure")
 	downloadImageCmd.Flags().Var(&downloadImagePlatformList,
 		"platform", "Choose qemu, gce, or aws. Multiple platforms can be specified by repeating the flag")
 
@@ -114,17 +119,26 @@ func runDownloadImage(cmd *cobra.Command, args []string) {
 		// path.Join doesn't work with urls
 		url := strings.TrimRight(downloadImageRoot, "/") + "/" + fileName
 
-		if downloadImageVerify {
-			plog.Noticef("Verifying and updating to latest image %v", fileName)
-			err := sdk.UpdateSignedFile(filePath, url)
-			if err != nil {
-				plog.Fatalf("updating signed file: %v", err)
+		download := func() error {
+			if downloadImageVerify {
+				plog.Noticef("Verifying and updating to latest image %v", fileName)
+				err := sdk.UpdateSignedFile(filePath, url)
+				if err != nil {
+					plog.Noticef("updating signed file: %v", err)
+					return err
+				}
+				return nil
+			} else {
+				plog.Noticef("Starting non-verified image update %v", fileName)
+				if err := sdk.UpdateFile(filePath, url); err != nil {
+					plog.Noticef("downloading image: %v", err)
+					return err
+				}
+				return nil
 			}
-		} else {
-			plog.Noticef("Starting non-verified image update %v", fileName)
-			if err := sdk.UpdateFile(filePath, url); err != nil {
-				plog.Fatalf("downloading image: %v", err)
-			}
+		}
+		if err := util.Retry(downloadImageRetries+1, time.Second, download); err != nil {
+			plog.Fatalf("updating image: %v", err)
 		}
 	}
 }
