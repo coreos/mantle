@@ -46,8 +46,8 @@ type enter struct {
 }
 
 // wrapper for bind mounts to report errors consistently
-func bind(src, dst string) error {
-	err := syscall.Mount(src, dst, "none", syscall.MS_BIND, "")
+func bind(src, dst, extra string) error {
+	err := syscall.Mount(src, dst, "none", syscall.MS_BIND, extra)
 	if err != nil {
 		return fmt.Errorf("Binding %q to %q failed: %v", src, dst, err)
 	}
@@ -56,7 +56,7 @@ func bind(src, dst string) error {
 
 // bind and remount read-only for safety
 func bindro(src, dst string) error {
-	if err := bind(src, dst); err != nil {
+	if err := bind(src, dst, ""); err != nil {
 		return err
 	}
 	if err := syscall.Mount(src, dst, "none", syscall.MS_REMOUNT|syscall.MS_BIND|syscall.MS_RDONLY, ""); err != nil {
@@ -99,7 +99,7 @@ func (e *enter) MountAPI() error {
 		return err
 	}
 	// /dev/pts must be read-write because emerge chowns tty devices.
-	if err := bind("/dev/pts", filepath.Join(e.Chroot, "dev/pts")); err != nil {
+	if err := bind("/dev/pts", filepath.Join(e.Chroot, "dev/pts"), "gid=5"); err != nil {
 		return err
 	}
 
@@ -150,7 +150,7 @@ func (e *enter) MountAgent(env string) error {
 		return err
 	}
 
-	if err := bind(origDir, newDir); err != nil {
+	if err := bind(origDir, newDir, ""); err != nil {
 		return err
 	}
 
@@ -177,7 +177,7 @@ func (e *enter) MountGnupg() error {
 		return err
 	}
 
-	if err := bind(origHome, newHome); err != nil {
+	if err := bind(origHome, newHome, ""); err != nil {
 		return err
 	}
 
@@ -237,7 +237,7 @@ func enterChrootHelper(args []string) (err error) {
 		return fmt.Errorf("Unsharing mount points failed: %v", err)
 	}
 
-	if err := bind(e.RepoRoot, newRepoRoot); err != nil {
+	if err := bind(e.RepoRoot, newRepoRoot, ""); err != nil {
 		return err
 	}
 
