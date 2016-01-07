@@ -278,6 +278,8 @@ func scpKolet(t platform.TestCluster) error {
 		".",
 		filepath.Dir(os.Args[0]),
 		filepath.Join("/usr/lib/kola", mArch),
+		// CoreOS ebuild for mantle installs binaries here
+		"/usr/bin",
 	} {
 		kolet := filepath.Join(d, "kolet")
 		if _, err := os.Stat(kolet); err == nil {
