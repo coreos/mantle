@@ -26,15 +26,19 @@ import (
 	"github.com/coreos/mantle/Godeps/_workspace/src/github.com/vishvananda/netns"
 	"github.com/coreos/mantle/network"
 	"github.com/coreos/mantle/network/ntp"
+	"github.com/coreos/mantle/network/omaha"
 	"github.com/coreos/mantle/system/exec"
+	"github.com/coreos/mantle/util"
 )
 
 type LocalCluster struct {
-	Dnsmasq    *Dnsmasq
-	NTPServer  *ntp.Server
-	SSHAgent   *network.SSHAgent
-	SimpleEtcd *SimpleEtcd
-	nshandle   netns.NsHandle
+	util.MultiDestructor
+	Dnsmasq     *Dnsmasq
+	NTPServer   *ntp.Server
+	OmahaServer *omaha.Server
+	SSHAgent    *network.SSHAgent
+	SimpleEtcd  *SimpleEtcd
+	nshandle    netns.NsHandle
 }
 
 func NewLocalCluster() (*LocalCluster, error) {
@@ -45,15 +49,17 @@ func NewLocalCluster() (*LocalCluster, error) {
 	if err != nil {
 		return nil, err
 	}
+	lc.AddCloser(&lc.nshandle)
 
 	dialer := NewNsDialer(lc.nshandle)
 	lc.SSHAgent, err = network.NewSSHAgent(dialer)
 	if err != nil {
-		lc.nshandle.Close()
+		lc.Destroy()
 		return nil, err
 	}
+	lc.AddCloser(lc.SSHAgent)
 
-	// dnsmasq and etcd much be lunched in the new namespace
+	// dnsmasq and etcd much be launched in the new namespace
 	nsExit, err := NsEnter(lc.nshandle)
 	if err != nil {
 		return nil, err
@@ -62,25 +68,33 @@ func NewLocalCluster() (*LocalCluster, error) {
 
 	lc.Dnsmasq, err = NewDnsmasq()
 	if err != nil {
-		lc.nshandle.Close()
+		lc.Destroy()
 		return nil, err
 	}
+	lc.AddDestructor(lc.Dnsmasq)
 
 	lc.SimpleEtcd, err = NewSimpleEtcd()
 	if err != nil {
-		lc.Dnsmasq.Destroy()
-		lc.nshandle.Close()
+		lc.Destroy()
 		return nil, err
 	}
+	lc.AddDestructor(lc.SimpleEtcd)
 
 	lc.NTPServer, err = ntp.NewServer(":123")
 	if err != nil {
-		lc.Dnsmasq.Destroy()
-		lc.SimpleEtcd.Destroy()
-		lc.nshandle.Close()
+		lc.Destroy()
 		return nil, err
 	}
+	lc.AddCloser(lc.NTPServer)
 	go lc.NTPServer.Serve()
+
+	lc.OmahaServer, err = omaha.NewServer(":34567")
+	if err != nil {
+		lc.Destroy()
+		return nil, err
+	}
+	lc.AddDestructor(lc.OmahaServer)
+	go lc.OmahaServer.Serve()
 
 	return lc, nil
 }
@@ -156,19 +170,4 @@ func (lc *LocalCluster) NewTap(bridge string) (*TunTap, error) {
 	}
 
 	return tap, nil
-}
-
-func (lc *LocalCluster) Destroy() error {
-	var err error
-	firstErr := func(e error) {
-		if e != nil && err == nil {
-			err = e
-		}
-	}
-
-	firstErr(lc.SimpleEtcd.Destroy())
-	firstErr(lc.Dnsmasq.Destroy())
-	firstErr(lc.SSHAgent.Close())
-	firstErr(lc.nshandle.Close())
-	return err
 }

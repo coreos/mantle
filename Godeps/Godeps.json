@@ -208,7 +208,11 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/pkg/capnslog",
-			"Rev": "42a8c3b1a6f917bb8346ef738f32712a7ca0ede7"
+			"Rev": "2c77715c4df99b5420ffcae14ead08f52104065d"
+		},
+		{
+			"ImportPath": "github.com/coreos/pkg/multierror",
+			"Rev": "2c77715c4df99b5420ffcae14ead08f52104065d"
 		},
 		{
 			"ImportPath": "github.com/coreos/yaml",
@@ -287,7 +291,7 @@
 		},
 		{
 			"ImportPath": "github.com/spf13/pflag",
-			"Rev": "67cbc198fd11dab704b214c1e629a97af392c085"
+			"Rev": "7f60f83a2c81bc3c3c0d5297f61ddfa68da9d3b7"
 		},
 		{
 			"ImportPath": "github.com/ugorji/go/codec",
