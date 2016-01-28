@@ -15,6 +15,7 @@
 package sdk
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -22,6 +23,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"text/template"
 
 	"github.com/coreos/mantle/system"
 	"github.com/coreos/mantle/system/exec"
@@ -30,7 +32,21 @@ import (
 
 const enterChrootSh = "src/scripts/sdk_lib/enter_chroot.sh"
 
-var enterChroot exec.Entrypoint
+var (
+	enterChroot  exec.Entrypoint
+	botoTemplate = template.Must(template.New("boto").Parse(`
+{{if eq .Type "authorized_user"}}
+[Credentials]
+gs_oauth2_refresh_token = {{.RefreshToken}}
+[OAuth2]
+client_id = {{.ClientID}}
+client_secret = {{.ClientSecret}}
+{{else}}{{if eq .Type "service_account"}}
+[Credentials]
+gs_service_key_file = {{.Path}}
+{{end}}{{end}}
+`))
+)
 
 func init() {
 	enterChroot = exec.NewEntrypoint("enterChroot", enterChrootHelper)
@@ -45,61 +61,50 @@ type enter struct {
 	UserRunDir string
 }
 
-// wrapper for bind mounts to report errors consistently
-func bind(src, dst string) error {
-	err := syscall.Mount(src, dst, "none", syscall.MS_BIND, "")
-	if err != nil {
-		return fmt.Errorf("Binding %q to %q failed: %v", src, dst, err)
-	}
-	return nil
-}
+type googleCreds struct {
+	// Path to JSON file (for template above)
+	Path string
 
-// bind and remount read-only for safety
-func bindro(src, dst string) error {
-	if err := bind(src, dst); err != nil {
-		return err
-	}
-	if err := syscall.Mount(src, dst, "none", syscall.MS_REMOUNT|syscall.MS_BIND|syscall.MS_RDONLY, ""); err != nil {
-		return fmt.Errorf("Read-only bind %q to %q failed: %v", src, dst, err)
-	}
-	return nil
-}
+	// Common fields
+	Type     string
+	ClientID string `json:"client_id"`
 
-// wrapper for plain mounts to report errors consistently
-func mount(src, dst, fs string, flags uintptr, extra string) error {
-	if err := syscall.Mount(src, dst, fs, flags, extra); err != nil {
-		return fmt.Errorf("Mounting %q to %q failed: %v", src, dst, err)
-	}
-	return nil
+	// User Credential fields
+	ClientSecret string `json:"client_secret"`
+	RefreshToken string `json:"refresh_token"`
+
+	// Service Account fields
+	ClientEmail  string `json:"client_email"`
+	PrivateKeyID string `json:"private_key_id"`
+	PrivateKey   string `json:"private_key"`
 }
 
 // MountAPI mounts standard Linux API filesystems.
 // When possible the filesystems are mounted read-only.
 func (e *enter) MountAPI() error {
 	var apis = []struct {
-		Path  string
-		Type  string
-		Flags uintptr
-		Extra string
+		Path string
+		Type string
+		Opts string
 	}{
-		{"/proc", "proc", syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_RDONLY, ""},
-		{"/sys", "sysfs", syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_RDONLY, ""},
-		{"/run", "tmpfs", syscall.MS_NOSUID | syscall.MS_NODEV, "mode=755"},
+		{"/proc", "proc", "ro,nosuid,nodev,noexec"},
+		{"/sys", "sysfs", "ro,nosuid,nodev,noexec"},
+		{"/run", "tmpfs", "nosuid,nodev,mode=755"},
 	}
 
 	for _, fs := range apis {
 		target := filepath.Join(e.Chroot, fs.Path)
-		if err := mount(fs.Type, target, fs.Type, fs.Flags, fs.Extra); err != nil {
+		if err := system.Mount("", target, fs.Type, fs.Opts); err != nil {
 			return err
 		}
 	}
 
 	// Since loop devices are dynamic we need the host's managed /dev
-	if err := bindro("/dev", filepath.Join(e.Chroot, "dev")); err != nil {
+	if err := system.ReadOnlyBind("/dev", filepath.Join(e.Chroot, "dev")); err != nil {
 		return err
 	}
 	// /dev/pts must be read-write because emerge chowns tty devices.
-	if err := bind("/dev/pts", filepath.Join(e.Chroot, "dev/pts")); err != nil {
+	if err := system.Bind("/dev/pts", filepath.Join(e.Chroot, "dev/pts")); err != nil {
 		return err
 	}
 
@@ -124,7 +129,7 @@ func (e *enter) MountAPI() error {
 		}
 	} else {
 		shmPath := filepath.Join(e.Chroot, "dev/shm")
-		if err := mount("tmpfs", shmPath, "tmpfs", syscall.MS_NOSUID|syscall.MS_NODEV, ""); err != nil {
+		if err := system.Mount("", shmPath, "tmpfs", "nosuid,nodev"); err != nil {
 			return err
 		}
 	}
@@ -150,7 +155,7 @@ func (e *enter) MountAgent(env string) error {
 		return err
 	}
 
-	if err := bind(origDir, newDir); err != nil {
+	if err := system.Bind(origDir, newDir); err != nil {
 		return err
 	}
 
@@ -177,7 +182,7 @@ func (e *enter) MountGnupg() error {
 		return err
 	}
 
-	if err := bind(origHome, newHome); err != nil {
+	if err := system.Bind(origHome, newHome); err != nil {
 		return err
 	}
 
@@ -187,6 +192,81 @@ func (e *enter) MountGnupg() error {
 	}
 
 	return e.MountAgent("GPG_AGENT_INFO")
+}
+
+// CopyGoogleCreds copies a Google credentials JSON file if one exists.
+// Unfortunately gsutil only partially supports these JSON files and does not
+// respect GOOGLE_APPLICATION_CREDENTIALS at all so a boto file is created.
+// TODO(marineam): integrate with mantle/auth package to migrate towards
+// consistent handling of credentials across all of mantle and the SDK.
+func (e *enter) CopyGoogleCreds() error {
+	const (
+		name = "application_default_credentials.json"
+		env  = "GOOGLE_APPLICATION_CREDENTIALS"
+	)
+
+	path := os.Getenv(env)
+	if path == "" {
+		path = filepath.Join(e.User.HomeDir, ".config", "gcloud", name)
+	}
+
+	if _, err := os.Stat(path); err != nil {
+		// Skip but do not pass along the invalid env var
+		os.Unsetenv("BOTO_PATH")
+		return os.Unsetenv(env)
+	}
+
+	newDir, err := ioutil.TempDir(e.UserRunDir, "google-")
+	if err != nil {
+		return err
+	}
+	if err := os.Chown(newDir, e.User.UidNo, e.User.GidNo); err != nil {
+		return err
+	}
+	newPath := filepath.Join(newDir, name)
+	chrootPath := strings.TrimPrefix(newPath, e.Chroot)
+
+	credsRaw, err := ioutil.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var creds googleCreds
+	if err := json.Unmarshal(credsRaw, &creds); err != nil {
+		return err
+	}
+	creds.Path = chrootPath
+
+	botoPath := filepath.Join(newDir, "boto")
+	boto, err := os.OpenFile(botoPath, os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer boto.Close()
+
+	if err := botoTemplate.Execute(boto, &creds); err != nil {
+		return err
+	}
+
+	if err := boto.Chown(e.User.UidNo, e.User.GidNo); err != nil {
+		return err
+	}
+
+	// Include the default boto path as well for user customization.
+	chrootBoto := fmt.Sprintf("%s:/home/%s/.boto",
+		strings.TrimPrefix(botoPath, e.Chroot), e.User.Username)
+	if err := os.Setenv("BOTO_PATH", chrootBoto); err != nil {
+		return err
+	}
+
+	if err := system.CopyRegularFile(path, newPath); err != nil {
+		return err
+	}
+
+	if err := os.Chown(newPath, e.User.UidNo, e.User.GidNo); err != nil {
+		return err
+	}
+
+	return os.Setenv(env, chrootPath)
 }
 
 // bind mount the repo source tree into the chroot and run a command
@@ -232,12 +312,11 @@ func enterChrootHelper(args []string) (err error) {
 		return fmt.Errorf("Unsharing mount namespace failed: %v", err)
 	}
 
-	if err := syscall.Mount(
-		"none", "/", "none", syscall.MS_REC|syscall.MS_SLAVE, ""); err != nil {
-		return fmt.Errorf("Unsharing mount points failed: %v", err)
+	if err := system.RecursiveSlave("/"); err != nil {
+		return err
 	}
 
-	if err := bind(e.RepoRoot, newRepoRoot); err != nil {
+	if err := system.Bind(e.RepoRoot, newRepoRoot); err != nil {
 		return err
 	}
 
@@ -258,6 +337,10 @@ func enterChrootHelper(args []string) (err error) {
 	}
 
 	if err := e.MountGnupg(); err != nil {
+		return err
+	}
+
+	if err := e.CopyGoogleCreds(); err != nil {
 		return err
 	}
 
