@@ -140,7 +140,9 @@ func nginxCheck(master platform.Machine, nodes []platform.Machine) error {
 		}
 		return nil
 	}
-	if err := util.Retry(10, 5*time.Second, podIsRunning); err != nil {
+
+	// give nginx two minutes to come up
+	if err := util.Retry(12, 10*time.Second, podIsRunning); err != nil {
 		return err
 	}
 
