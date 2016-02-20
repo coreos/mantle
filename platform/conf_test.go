@@ -39,6 +39,7 @@ func TestConfCopyKey(t *testing.T) {
 		{""},
 		{`{ "ignitionVersion": 1 }`},
 		{"#cloud-config"},
+		{"#!/bin/sh"},
 	}
 
 	for i, tt := range tests {
@@ -51,6 +52,8 @@ func TestConfCopyKey(t *testing.T) {
 		conf.CopyKeys(keys)
 
 		str := conf.String()
+
+		t.Logf("%q -> %q", tt.conf, str)
 
 		if !strings.Contains(str, "ssh-rsa ") || !strings.Contains(str, " core@default") {
 			t.Errorf("ssh public key not found in config %d: %s", i, str)

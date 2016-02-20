@@ -28,6 +28,7 @@ import (
 type Conf struct {
 	ignition    *ign.Config
 	cloudconfig *cci.CloudConfig
+	script      string
 }
 
 var (
@@ -52,6 +53,8 @@ func NewConf(userdata string) (*Conf, error) {
 		if err != nil {
 			return nil, err
 		}
+	case ign.ErrScript:
+		c.script = userdata
 	default:
 		// some other error (invalid json, script)
 		return nil, err
@@ -75,6 +78,8 @@ func (c *Conf) String() string {
 		return buf.String()
 	} else if c.cloudconfig != nil {
 		return c.cloudconfig.String()
+	} else if c.script != "" {
+		return c.script
 	}
 
 	return ""
@@ -111,6 +116,13 @@ func (c *Conf) copyKeysCloudConfig(keys []*agent.Key) {
 	}
 }
 
+// mildly unreliable but i'm not sure what else to do.
+func (c *Conf) copyKeysScript(keys []*agent.Key) {
+	for _, key := range keys {
+		c.script += "\nupdate-ssh-keys -u core -a mantle <<EOF\n" + key.String() + "\nEOF\n"
+	}
+}
+
 // CopyKeys copies public keys from agent ag into the configuration to the
 // appropriate configuration section for the core user.
 func (c *Conf) CopyKeys(keys []*agent.Key) {
@@ -118,5 +130,7 @@ func (c *Conf) CopyKeys(keys []*agent.Key) {
 		c.copyKeysIgnition(keys)
 	} else if c.cloudconfig != nil {
 		c.copyKeysCloudConfig(keys)
+	} else if c.script != "" {
+		c.copyKeysScript(keys)
 	}
 }
