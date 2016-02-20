@@ -62,6 +62,8 @@ func runSpawn(cmd *cobra.Command, args []string) {
 		cluster, err = platform.NewGCECluster(kola.GCEOptions)
 	case "aws":
 		cluster, err = platform.NewAWSCluster(kola.AWSOptions)
+	case "packet":
+		cluster, err = platform.NewPacketCluster(kola.PacketOptions)
 	default:
 		err = fmt.Errorf("invalid platform %q", kolaPlatform)
 	}

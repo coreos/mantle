@@ -15,6 +15,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/coreos/mantle/kola"
 	"github.com/coreos/mantle/sdk"
 )
@@ -49,4 +51,10 @@ func init() {
 	sv(&kola.AWSOptions.KeyName, "aws-key", "", "AWS SSH key name")
 	sv(&kola.AWSOptions.InstanceType, "aws-type", "t1.micro", "AWS instance type")
 	sv(&kola.AWSOptions.SecurityGroup, "aws-sg", "kola", "AWS security group name")
+
+	// packet.net specific options.
+	sv(&kola.PacketOptions.Project, "packet-project", "mantle", "packet.net project name")
+	sv(&kola.PacketOptions.Plan, "packet-plan", "baremetal_0", "packet.net plan type")
+	sv(&kola.PacketOptions.OS, "packet-os", "coreos_alpha", "packet.net os")
+	kola.PacketOptions.APIKey = os.Getenv("PACKET_API_KEY")
 }
