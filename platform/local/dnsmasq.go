@@ -62,6 +62,7 @@ dhcp-option=option:ntp-server,0.0.0.0
 dhcp-option=option6:ntp-server,[::]
 
 {{range .Segments}}
+interface-name={{.BridgeName}}.local,{{.BridgeName}}
 domain={{.BridgeName}}.local
 
 {{range .BridgeIf.DHCPv4}}
