@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/coreos/mantle",
-	"GoVersion": "go1.4.3",
+	"GoVersion": "go1.5.3",
 	"Packages": [
 		"./..."
 	],
@@ -273,6 +273,10 @@
 		{
 			"ImportPath": "github.com/matttproud/golang_protobuf_extensions/pbutil",
 			"Rev": "fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a"
+		},
+		{
+			"ImportPath": "github.com/packethost/packngo",
+			"Rev": "f03d7dc788a8b57b62d301ccb98c950c325756f8"
 		},
 		{
 			"ImportPath": "github.com/prometheus/client_golang/prometheus",
