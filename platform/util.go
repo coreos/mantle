@@ -71,9 +71,8 @@ func Manhole(m Machine) error {
 		return fmt.Errorf("failed to start shell: %s", err)
 	}
 
-	if err := session.Wait(); err != nil {
-		return fmt.Errorf("failed to wait for session: %s", err)
-	}
+	// toss the error - we don't care what happens after Shell returns.
+	_ = session.Wait()
 
 	return nil
 }
