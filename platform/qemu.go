@@ -142,8 +142,8 @@ func (qc *QEMUCluster) NewMachine(cfg string) (Machine, error) {
 	qmCfg := qm.configDrive.Directory
 	qm.qemu = qm.qc.NewCommand(
 		"qemu-system-x86_64",
-		"-machine", "accel=kvm",
-		"-cpu", "host",
+		"-machine", "accel=kvm:tcg",
+		"-cpu", "qemu64",
 		"-smp", "2",
 		"-m", "1024",
 		"-uuid", qm.id,
