@@ -33,7 +33,7 @@ type baseCluster struct {
 	agent *network.SSHAgent
 
 	machlock sync.Mutex
-	machmap  map[string]Machine
+	machs    []Machine
 }
 
 func newBaseCluster() (*baseCluster, error) {
@@ -49,8 +49,8 @@ func newBaseCluster() (*baseCluster, error) {
 	}
 
 	bc := &baseCluster{
-		agent:   agent,
-		machmap: make(map[string]Machine),
+		agent: agent,
+		machs: make([]Machine, 0),
 	}
 
 	return bc, nil
@@ -89,23 +89,38 @@ func (bc *baseCluster) SSH(m Machine, cmd string) ([]byte, error) {
 func (bc *baseCluster) Machines() []Machine {
 	bc.machlock.Lock()
 	defer bc.machlock.Unlock()
-	machs := make([]Machine, 0, len(bc.machmap))
-	for _, m := range bc.machmap {
-		machs = append(machs, m)
-	}
-	return machs
+
+	// copy to new underlying array for safety
+	dup := make([]Machine, len(bc.machs))
+	copy(dup, bc.machs)
+
+	return dup
 }
 
 func (bc *baseCluster) addMach(m Machine) {
 	bc.machlock.Lock()
 	defer bc.machlock.Unlock()
-	bc.machmap[m.ID()] = m
+	bc.machs = append(bc.machs, m)
 }
 
 func (bc *baseCluster) delMach(m Machine) {
 	bc.machlock.Lock()
 	defer bc.machlock.Unlock()
-	delete(bc.machmap, m.ID())
+
+	// find machine in slice
+	idx := -1
+	for i := range bc.machs {
+		if bc.machs[i].ID() == m.ID() {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		panic("baseCluster does not contain machine to delete")
+	}
+
+	// delete from slice
+	bc.machs = append(bc.machs[:idx], bc.machs[idx+1:]...)
 }
 
 // XXX(mischief): i don't really think this belongs here, but it completes the
