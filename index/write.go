@@ -37,9 +37,7 @@ var (
 )
 
 const (
-	// TODO: The version will be used to regenerate existing indexes.
-	INDEX_VERSION = `2014-08-12`
-	INDEX_TEXT    = `<html>
+	INDEX_TEXT = `<html>
     <head>
 	<title>{{.Bucket}}/{{.Prefix}}</title>
 	<meta http-equiv="X-Clacks-Overhead" content="GNU Terry Pratchett" />
@@ -97,6 +95,9 @@ func (d *Directory) WriteIndex(client *http.Client) error {
 		Name:         d.Prefix + "index.html",
 		ContentType:  "text/html",
 		CacheControl: "public, max-age=60",
+		Metadata: map[string]string{
+			"mantle-index-hash": d.IndexCRC32c(),
+		},
 	}
 	writeReq := service.Objects.Insert(d.Bucket, &writeObj)
 	writeReq.Media(&buf)

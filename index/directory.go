@@ -15,13 +15,17 @@
 package index
 
 import (
+	"encoding/base64"
 	"fmt"
+	"hash"
+	"hash/crc32"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/coreos/mantle/Godeps/_workspace/src/google.golang.org/api/storage/v1"
+
+	"github.com/coreos/mantle/lang/maps"
 )
 
 type Directory struct {
@@ -29,7 +33,6 @@ type Directory struct {
 	Prefix  string
 	SubDirs map[string]*Directory
 	Objects map[string]*storage.Object
-	Updated time.Time
 }
 
 func NewDirectory(rawURL string) (*Directory, error) {
@@ -57,6 +60,40 @@ func NewDirectory(rawURL string) (*Directory, error) {
 		SubDirs: make(map[string]*Directory),
 		Objects: make(map[string]*storage.Object),
 	}, nil
+}
+
+func (d *Directory) computeIndexHash(alg hash.Hash) {
+	alg.Write([]byte(INDEX_TEXT))
+
+	for _, name := range maps.SortedKeys(d.SubDirs) {
+		alg.Write([]byte("dir"))
+		alg.Write([]byte(name))
+	}
+
+	for _, name := range maps.SortedKeys(d.Objects) {
+		_, isDir := d.SubDirs[name]
+		if isDir || name == "" || name == "index.html" {
+			continue
+		}
+		alg.Write([]byte("obj"))
+		alg.Write([]byte(name))
+	}
+}
+
+func (d *Directory) IndexCRC32c() string {
+	hasher := crc32.New(crc32.MakeTable(crc32.Castagnoli))
+	d.computeIndexHash(hasher)
+	sum := base64.StdEncoding.EncodeToString(hasher.Sum(nil))
+	// Uses the same format as the x-goog-hash header.
+	return fmt.Sprintf("crc32c=%s", sum)
+}
+
+func (d *Directory) IndexHashEqual(other string) bool {
+	// Format is alg=sum, same as the x-goog-hash header.
+	if strings.HasPrefix(other, "crc32c=") {
+		return other == d.IndexCRC32c()
+	}
+	return false // unknown hash or bad value
 }
 
 func (d *Directory) Fetch(client *http.Client) error {
@@ -101,18 +138,6 @@ func (d *Directory) AddObject(obj *storage.Object) error {
 	name := strings.TrimPrefix(obj.Name, d.Prefix)
 	split := strings.SplitAfterN(name, "/", 2)
 
-	// Propagate update time to parent directories, excluding indexes.
-	// Used to detect when indexes should be regenerated.
-	if split[len(split)-1] != "index.html" {
-		objUpdated, err := time.Parse(time.RFC3339Nano, obj.Updated)
-		if err != nil {
-			return err
-		}
-		if d.Updated.Before(objUpdated) {
-			d.Updated = objUpdated
-		}
-	}
-
 	// Save object locally if it has no slash or only ends in slash
 	if len(split) == 1 || len(split[1]) == 0 {
 		d.Objects[name] = obj
@@ -138,8 +163,7 @@ func (d *Directory) NeedsIndex() bool {
 		return false
 	}
 	if index, ok := d.Objects["index.html"]; ok {
-		indexUpdated, err := time.Parse(time.RFC3339Nano, index.Updated)
-		return err != nil || d.Updated.After(indexUpdated)
+		return !d.IndexHashEqual(index.Metadata["mantle-index-hash"])
 	}
 	return true
 }
