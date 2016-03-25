@@ -34,8 +34,8 @@ import (
 )
 
 const (
-	urlHost = "storage.googleapis.com"
-	urlPath = "/builds.developer.core-os.net/sdk"
+	urlHost = "s3.amazonaws.com"
+	urlPath = "/coreos-builds/sdk"
 )
 
 var plog = capnslog.NewPackageLogger("github.com/coreos/mantle", "sdk")
