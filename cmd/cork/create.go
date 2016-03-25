@@ -21,7 +21,9 @@ import (
 	"github.com/coreos/mantle/Godeps/_workspace/src/github.com/coreos/go-semver/semver"
 	"github.com/coreos/mantle/Godeps/_workspace/src/github.com/spf13/cobra"
 	"github.com/coreos/mantle/Godeps/_workspace/src/github.com/spf13/pflag"
+
 	"github.com/coreos/mantle/sdk"
+	"github.com/coreos/mantle/sdk/repo"
 )
 
 const (
@@ -35,10 +37,11 @@ var (
 
 	// creation flags
 	creationFlags  *pflag.FlagSet
-	chrootVersion  string
+	sdkVersion     string
 	manifestURL    string
 	manifestName   string
 	manifestBranch string
+	repoVerify     bool
 
 	// only for `create` command
 	allowReplace bool
@@ -50,6 +53,7 @@ var (
 	allowCreate      bool
 	downgradeInPlace bool
 	downgradeReplace bool
+	newVersion       string
 
 	createCmd = &cobra.Command{
 		Use:   "create",
@@ -71,6 +75,11 @@ var (
 		Short: "Update the SDK chroot and source tree",
 		Run:   runUpdate,
 	}
+	verifyCmd = &cobra.Command{
+		Use:   "verify",
+		Short: "Check repo tree and release manifest match",
+		Run:   runVerify,
+	}
 )
 
 func init() {
@@ -81,7 +90,7 @@ func init() {
 		"chroot", "chroot", "SDK chroot directory name")
 
 	creationFlags = pflag.NewFlagSet("creation", pflag.ExitOnError)
-	creationFlags.StringVar(&chrootVersion,
+	creationFlags.StringVar(&sdkVersion,
 		"sdk-version", "", "SDK version. Defaults to the SDK version in version.txt")
 	creationFlags.StringVar(&manifestURL,
 		"manifest-url", coreosManifestURL, "Manifest git repo location")
@@ -89,6 +98,8 @@ func init() {
 		"manifest-branch", "master", "Manifest git repo branch")
 	creationFlags.StringVar(&manifestName,
 		"manifest-name", "default.xml", "Manifest file name")
+	creationFlags.BoolVar(&repoVerify,
+		"verify", false, "Check repo tree and release manifest match")
 
 	createCmd.Flags().AddFlagSet(chrootFlags)
 	createCmd.Flags().AddFlagSet(creationFlags)
@@ -114,7 +125,11 @@ func init() {
 	updateCmd.Flags().BoolVar(&downgradeReplace,
 		"downgrade-replace", false,
 		"Replace SDK chroot instead of downgrading")
+	updateCmd.Flags().StringVar(&newVersion,
+		"new-version", "", "Hint at the new version. Defaults to the version in version.txt")
 	root.AddCommand(updateCmd)
+
+	root.AddCommand(verifyCmd)
 }
 
 func runCreate(cmd *cobra.Command, args []string) {
@@ -122,15 +137,15 @@ func runCreate(cmd *cobra.Command, args []string) {
 		plog.Fatal("No args accepted")
 	}
 
-	if chrootVersion == "" {
+	if sdkVersion == "" {
 		plog.Noticef("Detecting SDK version")
 
 		if ver, err := sdk.VersionsFromManifest(); err == nil {
-			chrootVersion = ver.SDKVersion
-			plog.Noticef("Found SDK version %s from local repo", chrootVersion)
+			sdkVersion = ver.SDKVersion
+			plog.Noticef("Found SDK version %s from local repo", sdkVersion)
 		} else if ver, err := sdk.VersionsFromRemoteRepo(manifestURL, manifestBranch); err == nil {
-			chrootVersion = ver.SDKVersion
-			plog.Noticef("Found SDK version %s from remote repo", chrootVersion)
+			sdkVersion = ver.SDKVersion
+			plog.Noticef("Found SDK version %s from remote repo", sdkVersion)
 		} else {
 			plog.Fatalf("Reading from remote repo failed: %v", err)
 		}
@@ -141,8 +156,8 @@ func runCreate(cmd *cobra.Command, args []string) {
 }
 
 func unpackChroot(replace bool) {
-	plog.Noticef("Downloading SDK version %s", chrootVersion)
-	if err := sdk.DownloadSDK(chrootVersion); err != nil {
+	plog.Noticef("Downloading SDK version %s", sdkVersion)
+	if err := sdk.DownloadSDK(sdkVersion); err != nil {
 		plog.Fatalf("Download failed: %v", err)
 	}
 
@@ -152,7 +167,7 @@ func unpackChroot(replace bool) {
 		}
 	}
 
-	if err := sdk.Unpack(chrootVersion, chrootName); err != nil {
+	if err := sdk.Unpack(sdkVersion, chrootName); err != nil {
 		plog.Fatalf("Create failed: %v", err)
 	}
 
@@ -168,6 +183,12 @@ func updateRepo() {
 
 	if err := sdk.RepoSync(chrootName); err != nil {
 		plog.Fatalf("repo sync failed: %v", err)
+	}
+
+	if repoVerify {
+		if err := repo.VerifySync(manifestName); err != nil {
+			plog.Fatalf("Verify failed: %v", err)
+		}
 	}
 }
 
@@ -213,17 +234,26 @@ func runUpdate(cmd *cobra.Command, args []string) {
 		plog.Fatal("Conflicting downgrade options")
 	}
 
-	plog.Notice("Detecting remote and local versions.")
-	ver, err := sdk.VersionsFromRemoteRepo(manifestURL, manifestBranch)
-	if err != nil {
-		plog.Fatalf("Reading from remote repo failed: %v", err)
-	}
-	plog.Infof("Target version %s", ver.Version)
+	if sdkVersion == "" || newVersion == "" {
+		plog.Notice("Detecting versions in remote repo")
+		ver, err := sdk.VersionsFromRemoteRepo(manifestURL, manifestBranch)
+		if err != nil {
+			plog.Fatalf("Reading from remote repo failed: %v", err)
+		}
 
-	if chrootVersion == "" {
-		chrootVersion = ver.SDKVersion
+		if newVersion == "" {
+			newVersion = ver.Version
+		}
+
+		if sdkVersion == "" {
+			sdkVersion = ver.SDKVersion
+		}
 	}
 
+	plog.Infof("New version %s", newVersion)
+	plog.Infof("SDK version %s", sdkVersion)
+
+	plog.Info("Checking version of local chroot")
 	chroot := filepath.Join(sdk.RepoRoot(), chrootName)
 	old, err := sdk.OSRelease(chroot)
 	if err != nil {
@@ -232,9 +262,9 @@ func runUpdate(cmd *cobra.Command, args []string) {
 		} else {
 			plog.Fatal(err)
 		}
-	} else if verLessThan(ver.Version, old.Version) {
-		plog.Noticef("Downgrade from %s to target version %s required!",
-			old.Version, ver.Version)
+	} else if verLessThan(newVersion, old.Version) {
+		plog.Noticef("Downgrade from %s to %s required!",
+			old.Version, newVersion)
 		if downgradeReplace {
 			unpackChroot(true)
 		} else if downgradeInPlace {
@@ -248,5 +278,15 @@ func runUpdate(cmd *cobra.Command, args []string) {
 
 	if err := sdk.Enter(chrootName, updateCommand...); err != nil {
 		plog.Fatalf("update_chroot failed: %v", err)
+	}
+}
+
+func runVerify(cmd *cobra.Command, args []string) {
+	if len(args) != 0 {
+		plog.Fatal("No args accepted")
+	}
+
+	if err := repo.VerifySync(""); err != nil {
+		plog.Fatalf("Verify failed: %v", err)
 	}
 }
