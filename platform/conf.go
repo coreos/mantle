@@ -19,14 +19,15 @@ import (
 	"encoding/json"
 
 	cci "github.com/coreos/mantle/Godeps/_workspace/src/github.com/coreos/coreos-cloudinit/config"
-	ign "github.com/coreos/mantle/Godeps/_workspace/src/github.com/coreos/ignition/src/config"
 	"github.com/coreos/mantle/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
+	"github.com/coreos/mantle/config/ignition/v1/config"
+	"github.com/coreos/mantle/config/ignition/v1/config/types"
 )
 
 // Conf is a configuration for a CoreOS machine. It may be either a
 // coreos-cloudconfig or an ignition configuration.
 type Conf struct {
-	ignition    *ign.Config
+	ignition    *types.Config
 	cloudconfig *cci.CloudConfig
 }
 
@@ -35,11 +36,11 @@ type Conf struct {
 func NewConf(userdata string) (*Conf, error) {
 	c := &Conf{}
 
-	ignc, err := ign.Parse([]byte(userdata))
+	ignc, err := config.Parse([]byte(userdata))
 	switch err {
-	case ign.ErrEmpty:
+	case config.ErrEmpty:
 		// empty, noop
-	case ign.ErrCloudConfig:
+	case config.ErrCloudConfig:
 		// fall back to cloud-config
 		c.cloudconfig, err = cci.NewCloudConfig(userdata)
 		if err != nil {
@@ -75,7 +76,7 @@ func (c *Conf) String() string {
 
 func (c *Conf) copyKeysIgnition(keys []*agent.Key) {
 	// lookup core user entry
-	var usr *ign.User
+	var usr *types.User
 
 	users := c.ignition.Passwd.Users
 
@@ -87,7 +88,7 @@ func (c *Conf) copyKeysIgnition(keys []*agent.Key) {
 
 	// doesn't exist yet - create it
 	if usr == nil {
-		u := ign.User{Name: "core"}
+		u := types.User{Name: "core"}
 		users = append(users, u)
 		c.ignition.Passwd.Users = users
 		usr = &users[len(users)-1]
