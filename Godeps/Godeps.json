@@ -355,6 +355,11 @@
 			"Rev": "cdd6a92d02dc57a6202c2bcf8482ee8572b500a5"
 		},
 		{
+			"ImportPath": "github.com/coreos/ignition/third_party/github.com/camlistore/camlistore/pkg/errorutil",
+			"Comment": "v0.3.3",
+			"Rev": "cdd6a92d02dc57a6202c2bcf8482ee8572b500a5"
+		},
+		{
 			"ImportPath": "github.com/coreos/ioprogress",
 			"Rev": "4637e494fd9b23c5565ee193e89f91fdc1639bc0"
 		},
