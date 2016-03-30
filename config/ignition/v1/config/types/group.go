@@ -1,4 +1,4 @@
-// Copyright 2015 CoreOS, Inc.
+// Copyright 2016 CoreOS, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package types
 
-type Networkd struct {
-	Units []NetworkdUnit `json:"units,omitempty" yaml:"units"`
+type Group struct {
+	Name         string `json:"name,omitempty"          yaml:"name"`
+	Gid          *uint  `json:"gid,omitempty"           yaml:"gid"`
+	PasswordHash string `json:"passwordHash,omitempty"  yaml:"password_hash"`
+	System       bool   `json:"system,omitempty"        yaml:"system"`
 }

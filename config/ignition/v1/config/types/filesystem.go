@@ -1,4 +1,4 @@
-// Copyright 2015 CoreOS, Inc.
+// Copyright 2016 CoreOS, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package types
 
 import (
 	"encoding/json"
@@ -20,12 +20,11 @@ import (
 )
 
 var (
-	ErrFilesystemRelativePath  = errors.New("device path not absolute")
 	ErrFilesystemInvalidFormat = errors.New("invalid filesystem format")
 )
 
 type Filesystem struct {
-	Device DevicePath        `json:"device,omitempty" yaml:"device"`
+	Device Path              `json:"device,omitempty" yaml:"device"`
 	Format FilesystemFormat  `json:"format,omitempty" yaml:"format"`
 	Create *FilesystemCreate `json:"create,omitempty" yaml:"create"`
 	Files  []File            `json:"files,omitempty"  yaml:"files"`
@@ -34,6 +33,37 @@ type Filesystem struct {
 type FilesystemCreate struct {
 	Force   bool        `json:"force,omitempty"   yaml:"force"`
 	Options MkfsOptions `json:"options,omitempty" yaml:"options"`
+}
+
+func (f *Filesystem) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	return f.unmarshal(unmarshal)
+}
+
+func (f *Filesystem) UnmarshalJSON(data []byte) error {
+	return f.unmarshal(func(tf interface{}) error {
+		return json.Unmarshal(data, tf)
+	})
+}
+
+type filesystem Filesystem
+
+func (f *Filesystem) unmarshal(unmarshal func(interface{}) error) error {
+	tf := filesystem(*f)
+	if err := unmarshal(&tf); err != nil {
+		return err
+	}
+	*f = Filesystem(tf)
+	return f.assertValid()
+}
+
+func (f Filesystem) assertValid() error {
+	if err := f.Device.assertValid(); err != nil {
+		return err
+	}
+	if err := f.Format.assertValid(); err != nil {
+		return err
+	}
+	return nil
 }
 
 type FilesystemFormat string

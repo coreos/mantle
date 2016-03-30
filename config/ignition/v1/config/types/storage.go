@@ -1,4 +1,4 @@
-// Copyright 2015 CoreOS, Inc.
+// Copyright 2016 CoreOS, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package types
 
-type Passwd struct {
-	Users  []User  `json:"users,omitempty"  yaml:"users"`
-	Groups []Group `json:"groups,omitempty" yaml:"groups"`
+type Storage struct {
+	Disks       []Disk       `json:"disks,omitempty"       yaml:"disks"`
+	Arrays      []Raid       `json:"raid,omitempty"        yaml:"raid"`
+	Filesystems []Filesystem `json:"filesystems,omitempty" yaml:"filesystems"`
 }

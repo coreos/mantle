@@ -1,4 +1,4 @@
-// Copyright 2015 CoreOS, Inc.
+// Copyright 2016 CoreOS, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package types
 
 import (
 	"encoding/json"
@@ -20,10 +20,10 @@ import (
 )
 
 type Raid struct {
-	Name    string       `json:"name"              yaml:"name"`
-	Level   string       `json:"level"             yaml:"level"`
-	Devices []DevicePath `json:"devices,omitempty" yaml:"devices"`
-	Spares  int          `json:"spares,omitempty"  yaml:"spares"`
+	Name    string `json:"name"              yaml:"name"`
+	Level   string `json:"level"             yaml:"level"`
+	Devices []Path `json:"devices,omitempty" yaml:"devices"`
+	Spares  int    `json:"spares,omitempty"  yaml:"spares"`
 }
 
 func (n *Raid) UnmarshalYAML(unmarshal func(interface{}) error) error {

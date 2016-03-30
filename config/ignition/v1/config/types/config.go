@@ -1,4 +1,4 @@
-// Copyright 2015 CoreOS, Inc.
+// Copyright 2016 CoreOS, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package types
 
-import (
-	"encoding/json"
-	"errors"
+const (
+	Version = 1
 )
 
 type Config struct {
@@ -25,34 +24,4 @@ type Config struct {
 	Systemd  Systemd  `json:"systemd,omitempty"  yaml:"systemd"`
 	Networkd Networkd `json:"networkd,omitempty" yaml:"networkd"`
 	Passwd   Passwd   `json:"passwd,omitempty"   yaml:"passwd"`
-}
-
-const (
-	Version = 1
-)
-
-var (
-	ErrVersion     = errors.New("incorrect config version")
-	ErrCloudConfig = errors.New("not a config (found coreos-cloudconfig)")
-	ErrScript      = errors.New("not a config (found coreos-cloudinit script)")
-	ErrEmpty       = errors.New("not a config (empty)")
-)
-
-func Parse(config []byte) (cfg Config, err error) {
-	if err = json.Unmarshal(config, &cfg); err == nil {
-		if cfg.Version != Version {
-			err = ErrVersion
-		}
-	} else if isCloudConfig(config) {
-		err = ErrCloudConfig
-	} else if isScript(config) {
-		err = ErrScript
-	} else if isEmpty(config) {
-		err = ErrEmpty
-	}
-	return
-}
-
-func isEmpty(userdata []byte) bool {
-	return len(userdata) == 0
 }

@@ -1,4 +1,4 @@
-// Copyright 2015 CoreOS, Inc.
+// Copyright 2016 CoreOS, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package types
 
 import (
 	"encoding/json"
@@ -27,7 +27,7 @@ var (
 type FileMode os.FileMode
 
 type File struct {
-	Path     string   `json:"path,omitempty"     yaml:"path"`
+	Path     Path     `json:"path,omitempty"     yaml:"path"`
 	Contents string   `json:"contents,omitempty" yaml:"contents"`
 	Mode     FileMode `json:"mode,omitempty"     yaml:"mode"`
 	Uid      int      `json:"uid,omitempty"      yaml:"uid"`
