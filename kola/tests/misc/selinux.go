@@ -30,18 +30,38 @@ func init() {
 	})
 }
 
-// SelinuxEnforce checks that some basic things work after `setenforce 1`
+// SelinuxEnforce checks that some basic things work after setting SELINUX=enforcing.
+// updated to check for polkit failing in https://github.com/coreos/bugs/issues/1258.
 func SelinuxEnforce(c platform.TestCluster) error {
 	m := c.Machines()[0]
 
+	// configure selinux enforcing mode
+	for _, cmd := range []string{
+		"sudo cp --remove-destination $(readlink -f /etc/selinux/config) /etc/selinux/config",
+		"sudo sed --in-place --expression 's/SELINUX=permissive/SELINUX=enforcing/' /etc/selinux/config",
+	} {
+		output, err := m.SSH(cmd)
+		if err != nil {
+			return fmt.Errorf("failed to run %q: output: %q status: %q", cmd, output, err)
+		}
+	}
+
+	// reboot so we've got selinux from the start
+	err := platform.Reboot(m)
+	if err != nil {
+		return fmt.Errorf("failed to reboot machine: %v", err)
+	}
+
+	// check selinux state
 	for _, cmd := range []struct {
 		cmdline     string
 		checkoutput bool
 		output      string
 	}{
-		{"sudo setenforce 1", false, ""},
 		{"getenforce", true, "Enforcing"},
 		{"systemctl --no-pager is-active system.slice", true, "active"},
+		// check that polkit works, coreos/bugs#1258
+		{"sudo systemctl restart polkit", false, ""},
 	} {
 		output, err := m.SSH(cmd.cmdline)
 		if err != nil {
