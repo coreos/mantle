@@ -10,6 +10,7 @@ import (
 func main() {
 	u := update.Updater{
 		DstPartition: "out",
+		DstKernel:    "vmlinuz",
 	}
 
 	if err := u.OpenPayload(os.Args[1]); err != nil {

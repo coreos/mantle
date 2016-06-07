@@ -21,6 +21,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	if len(os.Args) > 2 {
+		kern, err := generator.FullUpdate(os.Args[2])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+
+		if err := g.Kernel(kern); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
+
 	if err := g.Write("out.gz"); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

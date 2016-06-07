@@ -92,6 +92,26 @@ func checkBlockAlignment(proc *Procedure) error {
 	return nil
 }
 
+func (g *Generator) Kernel(proc *Procedure) error {
+	proc.Type = metadata.InstallProcedure_KERNEL.Enum()
+	return g.addProc(proc)
+}
+
+func (g *Generator) addProc(proc *Procedure) error {
+	for _, other := range g.manifest.Procedures {
+		if *other.Type == *proc.Type {
+			return ErrProcedureExists
+		}
+	}
+
+	g.AddCloser(proc)
+	g.manifest.Procedures = append(g.manifest.Procedures,
+		&proc.InstallProcedure)
+	g.payloads = append(g.payloads, proc)
+
+	return nil
+}
+
 // Write finalizes the payload, writing it out to the given file path.
 func (g *Generator) Write(path string) (err error) {
 	g.manifest.BlockSize = proto.Uint32(BlockSize)

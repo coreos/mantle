@@ -34,6 +34,8 @@ var (
 type Updater struct {
 	SrcPartition string
 	DstPartition string
+	SrcKernel    string
+	DstKernel    string
 
 	payload *Payload
 }
@@ -77,7 +79,7 @@ func (u *Updater) UpdatePartition(proc *metadata.InstallProcedure) error {
 }
 
 func (u *Updater) UpdateKernel(proc *metadata.InstallProcedure) error {
-	return fmt.Errorf("KERNEL")
+	return u.updateCommon(proc, "kernel", u.SrcKernel, u.DstKernel)
 }
 
 func (u *Updater) updateCommon(proc *metadata.InstallProcedure, procName, srcPath, dstPath string) (err error) {
@@ -93,7 +95,7 @@ func (u *Updater) updateCommon(proc *metadata.InstallProcedure, procName, srcPat
 		}
 	}
 
-	dstFile, err = os.OpenFile(u.DstPartition, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+	dstFile, err = os.OpenFile(dstPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		return err
 	}
