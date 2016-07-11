@@ -35,8 +35,19 @@ const (
 	sshTimeout = 2 * time.Second
 )
 
+type Platform int
+
+const (
+	QEMU Platform = iota
+	GCE
+	AWS
+)
+
 // Machine represents a CoreOS instance.
 type Machine interface {
+	// Platform returns the platform that the machine is part of.
+	Platform() Platform
+
 	// ID returns the plaform-specific machine identifier.
 	ID() string
 
