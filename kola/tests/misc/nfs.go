@@ -23,8 +23,8 @@ import (
 	"github.com/coreos/mantle/platform"
 	"github.com/coreos/mantle/util"
 
-	"github.com/coreos/mantle/Godeps/_workspace/src/github.com/coreos/coreos-cloudinit/config"
-	"github.com/coreos/mantle/Godeps/_workspace/src/github.com/coreos/pkg/capnslog"
+	"github.com/coreos/coreos-cloudinit/config"
+	"github.com/coreos/pkg/capnslog"
 )
 
 var (

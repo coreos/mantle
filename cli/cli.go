@@ -17,8 +17,8 @@ package cli
 import (
 	"os"
 
-	"github.com/coreos/mantle/Godeps/_workspace/src/github.com/coreos/pkg/capnslog"
-	"github.com/coreos/mantle/Godeps/_workspace/src/github.com/spf13/cobra"
+	"github.com/coreos/pkg/capnslog"
+	"github.com/spf13/cobra"
 
 	"github.com/coreos/mantle/system/exec"
 	"github.com/coreos/mantle/version"
@@ -89,7 +89,7 @@ func startLogging(cmd *cobra.Command) {
 		logLevel = capnslog.INFO
 	}
 
-	capnslog.SetFormatter(capnslog.NewStringFormatter(cmd.Out()))
+	capnslog.SetFormatter(capnslog.NewStringFormatter(os.Stderr))
 	capnslog.SetGlobalLogLevel(logLevel)
 
 	// In the context of the internally linked etcd, the NOTICE messages

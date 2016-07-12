@@ -1,0 +1,270 @@
+hash: 3097f949dec6fc08cd2ad95351b4ca6e05273201ae672acdcb4304db50c9d90f
+updated: 2016-07-12T12:13:05.869855546-07:00
+imports:
+- name: github.com/aws/aws-sdk-go
+  version: 90dec2183a5f5458ee79cbaf4b8e9ab910bc81a6
+  subpackages:
+  - aws
+  - aws/credentials
+  - aws/session
+  - service/ec2
+  - aws/awserr
+  - aws/client
+  - aws/corehandlers
+  - aws/defaults
+  - aws/request
+  - private/endpoints
+  - aws/awsutil
+  - aws/client/metadata
+  - aws/signer/v4
+  - private/protocol
+  - private/protocol/ec2query
+  - private/waiter
+  - aws/credentials/ec2rolecreds
+  - aws/ec2metadata
+  - private/protocol/rest
+  - private/protocol/query/queryutil
+  - private/protocol/xml/xmlutil
+- name: github.com/beorn7/perks
+  version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
+  subpackages:
+  - quantile
+- name: github.com/boltdb/bolt
+  version: acc803f0ced151102ed51bf824f8709ebd6602bc
+- name: github.com/camlistore/camlistore
+  version: 9beb003f300e5af1b56b862373a1368625557bd3
+  subpackages:
+  - pkg/errorutil
+- name: github.com/coreos/coreos-cloudinit
+  version: 4c333e657bfbaa8f6594298b48324f45e6bf5961
+  subpackages:
+  - config
+- name: github.com/coreos/etcd
+  version: faeeb2fc7514c5caf7a9a0cc03ac9ee2ff94438b
+  subpackages:
+  - etcdserver
+  - etcdserver/etcdhttp
+  - pkg/types
+  - etcdserver/api/v2http
+  - alarm
+  - auth
+  - compactor
+  - discovery
+  - etcdserver/api/v2http/httptypes
+  - etcdserver/etcdserverpb
+  - etcdserver/membership
+  - etcdserver/stats
+  - lease
+  - lease/leasehttp
+  - mvcc
+  - mvcc/backend
+  - mvcc/mvccpb
+  - pkg/contention
+  - pkg/fileutil
+  - pkg/httputil
+  - pkg/idutil
+  - pkg/netutil
+  - pkg/pbutil
+  - pkg/runtime
+  - pkg/schedule
+  - pkg/transport
+  - pkg/wait
+  - raft
+  - raft/raftpb
+  - rafthttp
+  - snap
+  - store
+  - version
+  - wal
+  - wal/walpb
+  - error
+  - etcdserver/api
+  - etcdserver/auth
+  - pkg/logutil
+  - auth/authpb
+  - client
+  - lease/leasepb
+  - pkg/adt
+  - pkg/tlsutil
+  - pkg/ioutil
+  - snap/snappb
+  - pkg/crc
+  - pkg/pathutil
+- name: github.com/coreos/go-semver
+  version: 294930c1e79c64e7dbe360054274fdad492c8cf5
+  subpackages:
+  - semver
+- name: github.com/coreos/go-systemd
+  version: 5f8a27bd032fac5e5bbdcbf614a9e95e06cdbdbb
+  subpackages:
+  - journal
+- name: github.com/coreos/ignition
+  version: 46a72ce19640f120f57ff0d29892911a43cbeb71
+  subpackages:
+  - config
+  - config/types
+  - config/v1
+  - config/v1/types
+- name: github.com/coreos/ioprogress
+  version: 4637e494fd9b23c5565ee193e89f91fdc1639bc0
+- name: github.com/coreos/pkg
+  version: 7f080b6c11ac2d2347c3cd7521e810207ea1a041
+  subpackages:
+  - capnslog
+  - multierror
+- name: github.com/coreos/yaml
+  version: 6b16a5714269b2f70720a45406b1babd947a17ef
+- name: github.com/gengo/grpc-gateway
+  version: faa3576c70e270b37279f045637a7d04f632e353
+  subpackages:
+  - runtime
+  - utilities
+  - runtime/internal
+- name: github.com/go-ini/ini
+  version: cf53f9204df4fbdd7ec4164b57fa6184ba168292
+- name: github.com/godbus/dbus
+  version: 5f6efc7ef2759c81b7ba876593971bfce311eab3
+- name: github.com/gogo/protobuf
+  version: 2752d97bbd91927dd1c43296dbf8700e50e2708c
+  subpackages:
+  - proto
+- name: github.com/golang/protobuf
+  version: 3852dcfda249c2097355a6aabb199a28d97b30df
+  subpackages:
+  - proto
+  - jsonpb
+- name: github.com/google/btree
+  version: 7d79101e329e5a3adf994758c578dab82b90c017
+- name: github.com/inconshreveable/mousetrap
+  version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/jmespath/go-jmespath
+  version: 0b12d6b521d83fc7f755e7cfc1b1fbdd35a01a74
+- name: github.com/jonboulle/clockwork
+  version: 2eee05ed794112d45db504eb05aa693efd2b8b09
+- name: github.com/matttproud/golang_protobuf_extensions
+  version: c12348ce28de40eed0136aa2b644d0ee0650e56c
+  subpackages:
+  - pbutil
+- name: github.com/prometheus/client_golang
+  version: 28be15864ef9ba05d74fa6fd13b928fd250e8f01
+  subpackages:
+  - prometheus
+- name: github.com/prometheus/client_model
+  version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
+  subpackages:
+  - go
+- name: github.com/prometheus/common
+  version: 4402f4e5ea79ec15f3c574773b6a5198fbea215f
+  subpackages:
+  - expfmt
+  - internal/bitbucket.org/ww/goautoneg
+  - model
+- name: github.com/prometheus/procfs
+  version: abf152e5f3e97f2fafac028d2cc06c1feb87ffa5
+- name: github.com/satori/go.uuid
+  version: 879c5887cd475cd7864858769793b2ceb0d44feb
+- name: github.com/spf13/cobra
+  version: a272c3cbd5ff80a5bf5c5603df50183f9f3f7324
+- name: github.com/spf13/pflag
+  version: 367864438f1b1a3c7db4da06a2f55b144e6784e0
+- name: github.com/ugorji/go
+  version: b94837a2404ab90efe9289e77a70694c355739cb
+  subpackages:
+  - codec
+- name: github.com/vincent-petithory/dataurl
+  version: 9a301d65acbb728fcc3ace14f45f511a4cfeea9c
+- name: github.com/vishvananda/netlink
+  version: e73bad418fd727ed3a02830b1af1ad0283a1de6c
+  subpackages:
+  - nl
+- name: github.com/vishvananda/netns
+  version: 8ba1072b58e0c2a240eb5f6120165c7776c3e7b8
+- name: github.com/xiang90/probing
+  version: 6a0cc1ae81b4cc11db5e491e030e4b98fba79c19
+- name: go4.org
+  version: 85455cb60c902182109ca27131042a41bc4cb85d
+  subpackages:
+  - errorutil
+- name: golang.org/x/crypto
+  version: 2c99acdd1e9b90d779ca23f632aad86af9909c62
+  subpackages:
+  - openpgp
+  - ssh
+  - ssh/agent
+  - ssh/terminal
+  - openpgp/errors
+  - curve25519
+  - ed25519
+  - openpgp/armor
+  - openpgp/packet
+  - openpgp/s2k
+  - ed25519/internal/edwards25519
+  - cast5
+  - openpgp/elgamal
+  - bcrypt
+  - blowfish
+- name: golang.org/x/net
+  version: f841c39de738b1d0df95b5a7187744f0e03d8112
+  subpackages:
+  - context
+  - context/ctxhttp
+  - http2
+  - trace
+  - http2/hpack
+  - lex/httplex
+  - internal/timeseries
+- name: golang.org/x/oauth2
+  version: 7357e96168422ba1e6e7f21075713b72d58764e7
+  subpackages:
+  - google
+  - internal
+  - jws
+  - jwt
+- name: golang.org/x/sys
+  version: a408501be4d17ee978c04a618e7a1b22af058c0e
+  subpackages:
+  - unix
+- name: google.golang.org/api
+  version: c13a21ee847eca050f08db8373d8737494a1170e
+  subpackages:
+  - compute/v1
+  - googleapi
+  - storage/v1
+  - option
+  - gensupport
+  - googleapi/internal/uritemplates
+  - internal
+- name: google.golang.org/appengine
+  version: 267c27e7492265b84fc6719503b14a1e17975d79
+  subpackages:
+  - urlfetch
+  - internal
+  - internal/urlfetch
+  - internal/app_identity
+  - internal/modules
+  - internal/base
+  - internal/datastore
+  - internal/log
+  - internal/remote_api
+- name: google.golang.org/cloud
+  version: 83ee71d0fec26977bad1662134fa1e8c91268025
+  subpackages:
+  - compute/metadata
+  - internal
+- name: google.golang.org/grpc
+  version: 13edeeffdea7a41d5aad96c28deb4c7bd01a9397
+  subpackages:
+  - metadata
+  - codes
+  - credentials
+  - grpclog
+  - internal
+  - naming
+  - transport
+  - peer
+testImports:
+- name: github.com/kylelemons/godebug
+  version: eadb3ce320cbab8393bea5ca17bebac3f78a021b
+  subpackages:
+  - diff
+  - pretty

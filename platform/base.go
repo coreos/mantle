@@ -26,8 +26,8 @@ import (
 
 	"github.com/coreos/mantle/network"
 
-	"github.com/coreos/mantle/Godeps/_workspace/src/github.com/satori/go.uuid"
-	"github.com/coreos/mantle/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/satori/go.uuid"
+	"golang.org/x/crypto/ssh"
 )
 
 type baseCluster struct {
