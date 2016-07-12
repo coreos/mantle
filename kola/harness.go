@@ -28,8 +28,8 @@ import (
 	"github.com/coreos/mantle/kola/skip"
 	"github.com/coreos/mantle/platform"
 
-	"github.com/coreos/mantle/Godeps/_workspace/src/github.com/coreos/go-semver/semver"
-	"github.com/coreos/mantle/Godeps/_workspace/src/github.com/coreos/pkg/capnslog"
+	"github.com/coreos/go-semver/semver"
+	"github.com/coreos/pkg/capnslog"
 
 	// Tests imported for registration side effects.
 	_ "github.com/coreos/mantle/kola/tests/coretest"

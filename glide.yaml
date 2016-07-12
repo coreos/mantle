@@ -1,0 +1,73 @@
+package: .
+import:
+- package: github.com/aws/aws-sdk-go
+  version: ~1.2.4
+  subpackages:
+  - aws
+  - aws/credentials
+  - aws/session
+  - service/ec2
+- package: github.com/coreos/coreos-cloudinit
+  version: ~1.11.0
+  subpackages:
+  - config
+- package: github.com/coreos/etcd
+  version: ~3.0.2
+  subpackages:
+  - etcdserver
+  - etcdserver/etcdhttp
+  - pkg/types
+- package: github.com/coreos/go-semver
+  version: ~0.1.0
+  subpackages:
+  - semver
+- package: github.com/coreos/ignition
+  version: ~0.7.0
+  subpackages:
+  - config
+  - config/types
+  - config/v1
+  - config/v1/types
+- package: github.com/coreos/ioprogress
+- package: github.com/coreos/pkg
+  version: ~2.0.0
+  subpackages:
+  - capnslog
+  - multierror
+- package: github.com/godbus/dbus
+  version: ~4.0.0
+- package: github.com/golang/protobuf
+  subpackages:
+  - proto
+- package: github.com/satori/go.uuid
+  version: ~1.1.0
+- package: github.com/spf13/cobra
+- package: github.com/spf13/pflag
+- package: github.com/vishvananda/netlink
+- package: github.com/vishvananda/netns
+- package: golang.org/x/crypto
+  subpackages:
+  - openpgp
+  - ssh
+  - ssh/agent
+  - ssh/terminal
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: golang.org/x/oauth2
+  subpackages:
+  - google
+- package: golang.org/x/sys
+  subpackages:
+  - unix
+- package: google.golang.org/api
+  subpackages:
+  - compute/v1
+  - googleapi
+  - storage/v1
+- package: google.golang.org/cloud
+testImport:
+- package: github.com/kylelemons/godebug
+  subpackages:
+  - diff
+  - pretty
