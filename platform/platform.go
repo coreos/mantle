@@ -35,50 +35,10 @@ const (
 	sshTimeout = 2 * time.Second
 )
 
-// Machine represents a CoreOS instance.
-type Machine interface {
-	// ID returns the plaform-specific machine identifier.
-	ID() string
-
-	// IP returns the machine's public IP.
-	IP() string
-
-	// PrivateIP returns the machine's private IP.
-	PrivateIP() string
-
-	// SSHClient establishes a new SSH connection to the machine.
-	SSHClient() (*ssh.Client, error)
-
-	// PasswordSSHClient establishes a new SSH connection using the provided credentials.
-	PasswordSSHClient(user string, password string) (*ssh.Client, error)
-
-	// SSH runs a single command over a new SSH connection.
-	SSH(cmd string) ([]byte, error)
-
-	// Destroy terminates the machine and frees associated resources.
-	Destroy() error
-}
-
-// Cluster represents a cluster of CoreOS machines within a single platform.
-type Cluster interface {
-	// NewMachine creates a new CoreOS machine.
-	NewMachine(config string) (Machine, error)
-
-	// Machines returns a slice of the active machines in the Cluster.
-	Machines() []Machine
-
-	// GetDiscoveryURL returns a new etcd discovery URL.
-	GetDiscoveryURL(size int) (string, error)
-
-	// Destroy terminates each machine in the cluster and frees any other
-	// associated resources.
-	Destroy() error
-}
-
 // TestCluster embedds a Cluster to provide platform independant helper
 // methods.
 type TestCluster struct {
-	Name        string
+	TestName    string
 	NativeFuncs []string
 	Options     map[string]string
 	Cluster

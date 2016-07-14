@@ -46,7 +46,7 @@ type QEMUOptions struct {
 // XXX: must be exported so that certain QEMU tests can access struct members
 // through type assertions.
 type QEMUCluster struct {
-	*baseCluster
+	*BaseCluster
 	conf QEMUOptions
 
 	mu sync.Mutex
@@ -69,25 +69,26 @@ func NewQemuCluster(conf QEMUOptions) (Cluster, error) {
 		return nil, err
 	}
 
-	bc, err := newBaseCluster(conf.BaseName)
+	bc, err := NewBaseCluster(conf.BaseName)
 	if err != nil {
 		return nil, err
 	}
 
 	qc := &QEMUCluster{
-		baseCluster:  bc,
+		BaseCluster:  bc,
 		conf:         conf,
 		LocalCluster: lc,
 	}
 
-	return Cluster(qc), nil
+	return qc, nil
 }
 
 func (qc *QEMUCluster) Destroy() error {
-	for _, qm := range qc.Machines() {
-		qm.Destroy()
+	if err := qc.LocalCluster.Destroy(); err != nil {
+		return err
 	}
-	return qc.LocalCluster.Destroy()
+
+	return qc.BaseCluster.Destroy()
 }
 
 func (qc *QEMUCluster) NewMachine(cfg string) (Machine, error) {
@@ -196,9 +197,9 @@ func (qc *QEMUCluster) NewMachine(cfg string) (Machine, error) {
 		return nil, err
 	}
 
-	qc.addMach(qm)
+	qc.AddMach(qm)
 
-	return Machine(qm), nil
+	return qm, nil
 }
 
 // overrides baseCluster.GetDiscoveryURL
@@ -290,7 +291,7 @@ func (m *qemuMachine) Destroy() error {
 		}
 	}
 
-	m.qc.delMach(m)
+	m.qc.DelMach(m)
 
 	return err
 }

@@ -399,7 +399,7 @@ func RunTest(t *register.Test, pltfrm string) (err error) {
 
 	// Cluster -> TestCluster
 	tcluster := platform.TestCluster{
-		Name:        t.Name,
+		TestName:    t.Name,
 		NativeFuncs: names,
 		Options:     tempTestOptions,
 		Cluster:     cluster,

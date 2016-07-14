@@ -42,7 +42,7 @@ type GCEOptions struct {
 }
 
 type gceCluster struct {
-	*baseCluster
+	*BaseCluster
 	conf *GCEOptions
 	api  *compute.Service
 }
@@ -71,13 +71,13 @@ func NewGCECluster(conf GCEOptions) (Cluster, error) {
 		return nil, err
 	}
 
-	bc, err := newBaseCluster(conf.BaseName)
+	bc, err := NewBaseCluster(conf.BaseName)
 	if err != nil {
 		return nil, err
 	}
 
 	gc := &gceCluster{
-		baseCluster: bc,
+		BaseCluster: bc,
 		api:         api,
 		conf:        &conf,
 	}
@@ -100,7 +100,7 @@ func (gc *gceCluster) NewMachine(userdata string) (Machine, error) {
 		return nil, err
 	}
 
-	keys, err := gc.agent.List()
+	keys, err := gc.Keys()
 	if err != nil {
 		return nil, err
 	}
@@ -119,9 +119,9 @@ func (gc *gceCluster) NewMachine(userdata string) (Machine, error) {
 		return nil, err
 	}
 
-	gc.addMach(gm)
+	gc.AddMach(gm)
 
-	return Machine(gm), nil
+	return gm, nil
 }
 
 func (gm *gceMachine) ID() string {
@@ -154,7 +154,7 @@ func (gm *gceMachine) Destroy() error {
 		return err
 	}
 
-	gm.gc.delMach(gm)
+	gm.gc.DelMach(gm)
 
 	return nil
 }
