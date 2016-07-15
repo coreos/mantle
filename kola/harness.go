@@ -30,6 +30,7 @@ import (
 	"github.com/coreos/mantle/kola/register"
 	"github.com/coreos/mantle/kola/skip"
 	"github.com/coreos/mantle/platform"
+	"github.com/coreos/mantle/platform/amazon"
 
 	// Tests imported for registration side effects.
 	_ "github.com/coreos/mantle/kola/tests/coretest"
@@ -49,10 +50,11 @@ import (
 var (
 	plog = capnslog.NewPackageLogger("github.com/coreos/mantle", "kola")
 
+	// glue to set platform options from main
 	Options     = platform.Options{}
-	QEMUOptions = platform.QEMUOptions{Options: &Options} // glue to set platform options from main
-	GCEOptions  = platform.GCEOptions{Options: &Options}  // glue to set platform options from main
-	AWSOptions  = platform.AWSOptions{Options: &Options}  // glue to set platform options from main
+	QEMUOptions = platform.QEMUOptions{Options: &Options}
+	GCEOptions  = platform.GCEOptions{Options: &Options}
+	AWSOptions  = platform.AWSOptions{Options: &Options}
 
 	TestParallelism int    //glue var to set test parallelism from main
 	TAPFile         string // if not "", write TAP results here
@@ -357,7 +359,7 @@ func RunTest(t *register.Test, pltfrm string) (err error) {
 	case "gce":
 		cluster, err = platform.NewGCECluster(GCEOptions)
 	case "aws":
-		cluster, err = platform.NewAWSCluster(AWSOptions)
+		cluster, err = amazon.NewAWSCluster(AWSOptions)
 	default:
 		err = fmt.Errorf("invalid platform %q", pltfrm)
 	}
