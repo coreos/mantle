@@ -26,6 +26,7 @@ import (
 
 	"github.com/coreos/mantle/kola/tests/etcd"
 	"github.com/coreos/mantle/platform"
+	putil "github.com/coreos/mantle/platform/util"
 	"github.com/coreos/mantle/util"
 )
 
@@ -78,7 +79,7 @@ func setupCluster(c platform.TestCluster, nodes int, version string) (*kCluster,
 	for i := range workerConfigs {
 		workerConfigs[i] = "#cloud-config" // want default rather then blank
 	}
-	workers, err := platform.NewMachines(c, workerConfigs)
+	workers, err := putil.NewMachines(c, workerConfigs)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +132,7 @@ func generateMasterTLSAssets(master platform.Machine, options map[string]string)
 		return err
 	}
 
-	if err := platform.InstallFile(buffer, master, "/home/core/openssl.cnf"); err != nil {
+	if err := putil.InstallFile(buffer, master, "/home/core/openssl.cnf"); err != nil {
 		return err
 	}
 
@@ -169,11 +170,11 @@ func generateMasterTLSAssets(master platform.Machine, options map[string]string)
 func generateWorkerTLSAssets(master platform.Machine, workers []platform.Machine) error {
 	for i, worker := range workers {
 		// copy tls assets from master to workers
-		err := platform.TransferFile(master, "/etc/kubernetes/ssl/ca.pem", worker, "/home/core/ca.pem")
+		err := putil.TransferFile(master, "/etc/kubernetes/ssl/ca.pem", worker, "/home/core/ca.pem")
 		if err != nil {
 			return err
 		}
-		err = platform.TransferFile(master, "/home/core/ca-key.pem", worker, "/home/core/ca-key.pem")
+		err = putil.TransferFile(master, "/home/core/ca-key.pem", worker, "/home/core/ca-key.pem")
 		if err != nil {
 			return err
 		}
@@ -181,7 +182,7 @@ func generateWorkerTLSAssets(master platform.Machine, workers []platform.Machine
 		// place worker-openssl.cnf on workers
 		cnf := strings.Replace(workerCNF, "{{.WORKER_IP}}", worker.PrivateIP(), -1)
 		in := strings.NewReader(cnf)
-		if err := platform.InstallFile(in, worker, "/home/core/worker-openssl.cnf"); err != nil {
+		if err := putil.InstallFile(in, worker, "/home/core/worker-openssl.cnf"); err != nil {
 			return err
 		}
 
@@ -281,7 +282,7 @@ func runInstallScript(m platform.Machine, script string, options map[string]stri
 		return err
 	}
 
-	if err := platform.InstallFile(buffer, m, "/home/core/install.sh"); err != nil {
+	if err := putil.InstallFile(buffer, m, "/home/core/install.sh"); err != nil {
 		return err
 	}
 

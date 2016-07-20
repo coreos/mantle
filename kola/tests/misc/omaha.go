@@ -22,6 +22,7 @@ import (
 	"github.com/coreos/mantle/kola/register"
 	"github.com/coreos/mantle/network/omaha"
 	"github.com/coreos/mantle/platform"
+	"github.com/coreos/mantle/platform/machine/qemu"
 )
 
 func init() {
@@ -50,7 +51,7 @@ func (ps *pingServer) Ping(req *omaha.Request, app *omaha.AppRequest) {
 }
 
 func OmahaPing(c platform.TestCluster) error {
-	qc, ok := c.Cluster.(*platform.QEMUCluster)
+	qc, ok := c.Cluster.(*qemu.Cluster)
 	if !ok {
 		return errors.New("test only works in qemu")
 	}
@@ -74,7 +75,6 @@ func OmahaPing(c platform.TestCluster) error {
 
 	select {
 	case <-tc:
-		platform.Manhole(m)
 		return errors.New("timed out waiting for omaha ping")
 	case <-svc.ping:
 	}

@@ -31,6 +31,11 @@ import (
 	"github.com/coreos/mantle/network"
 )
 
+// Options contains the base options for all clusters.
+type Options struct {
+	BaseName string
+}
+
 // BaseCluster forms the basis of a cluster of CoreOS machines.
 //
 // It holds references to each Machine, and has ssh credentials for

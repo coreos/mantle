@@ -22,6 +22,9 @@ import (
 
 	"github.com/coreos/mantle/kola"
 	"github.com/coreos/mantle/platform"
+	"github.com/coreos/mantle/platform/machine/aws"
+	"github.com/coreos/mantle/platform/machine/gce"
+	"github.com/coreos/mantle/platform/machine/qemu"
 )
 
 var cmdBootchart = &cobra.Command{
@@ -54,11 +57,11 @@ func runBootchart(cmd *cobra.Command, args []string) {
 		err     error
 	)
 	if kolaPlatform == "qemu" {
-		cluster, err = platform.NewQemuCluster(kola.QEMUOptions)
+		cluster, err = qemu.NewCluster(kola.QEMUOptions)
 	} else if kolaPlatform == "gce" {
-		cluster, err = platform.NewGCECluster(kola.GCEOptions)
+		cluster, err = gce.NewCluster(&kola.GCEOptions)
 	} else if kolaPlatform == "aws" {
-		cluster, err = platform.NewAWSCluster(kola.AWSOptions)
+		cluster, err = aws.NewCluster(&kola.AWSOptions)
 	} else {
 		fmt.Fprintf(os.Stderr, "Invalid platform: %v", kolaPlatform)
 	}

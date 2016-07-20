@@ -25,6 +25,7 @@ import (
 
 	"github.com/coreos/mantle/kola/register"
 	"github.com/coreos/mantle/platform"
+	putil "github.com/coreos/mantle/platform/util"
 	"github.com/coreos/mantle/util"
 )
 
@@ -109,7 +110,7 @@ func Proxy(c platform.TestCluster) error {
 	}
 	defer proxy.Destroy()
 
-	err = platform.InstallFile(strings.NewReader(fleetunit), proxy, "/home/core/hello.service")
+	err = putil.InstallFile(strings.NewReader(fleetunit), proxy, "/home/core/hello.service")
 	if err != nil {
 		return fmt.Errorf("InstallFile: %s", err)
 	}

@@ -19,6 +19,9 @@ import (
 
 	"github.com/coreos/mantle/cli"
 	"github.com/coreos/mantle/platform"
+	"github.com/coreos/mantle/platform/api/gce"
+
+	"github.com/coreos/pkg/capnslog"
 )
 
 var (
@@ -27,8 +30,21 @@ var (
 		Short: "gce image creation and upload tools",
 	}
 
-	opts = platform.GCEOptions{Options: &platform.Options{}}
+	opts = gce.Options{Options: &platform.Options{}}
+
+	plog = capnslog.NewPackageLogger("github.com/coreos/mantle", "cmd/ore")
+
+	api *gce.API
 )
+
+func preauth(cmd *cobra.Command, args []string) {
+	a, err := gce.New(&opts)
+	if err != nil {
+		plog.Fatalf("Unable to create api client: %v", err)
+	}
+
+	api = a
+}
 
 func main() {
 	sv := root.PersistentFlags().StringVar
@@ -40,6 +56,7 @@ func main() {
 	sv(&opts.DiskType, "disktype", "pd-ssd", "disk type")
 	sv(&opts.BaseName, "basename", "kola", "instance name prefix")
 	sv(&opts.Network, "network", "default", "network name")
+	root.PersistentFlags().BoolVar(&opts.ServiceAuth, "service-auth", false, "use non-interactive auth when running within GCE")
 
 	cli.Execute(root)
 }

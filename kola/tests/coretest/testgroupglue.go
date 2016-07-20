@@ -7,6 +7,7 @@ import (
 
 	"github.com/coreos/mantle/kola/tests/etcd"
 	"github.com/coreos/mantle/platform"
+	"github.com/coreos/mantle/platform/util"
 )
 
 var plog = capnslog.NewPackageLogger("github.com/coreos/mantle", "kola/tests/coretest")
@@ -29,7 +30,7 @@ func ClusterTests(c platform.TestCluster) error {
 	if plog.LevelAt(capnslog.DEBUG) {
 		// get journalctl -f from all machines before starting
 		for _, m := range c.Machines() {
-			if err := platform.StreamJournal(m); err != nil {
+			if err := util.StreamJournal(m); err != nil {
 				return fmt.Errorf("failed to start journal: %v", err)
 			}
 		}
