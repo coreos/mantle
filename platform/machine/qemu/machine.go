@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package platform
+package qemu
 
 import (
 	"bytes"
@@ -24,12 +24,15 @@ import (
 	"github.com/satori/go.uuid"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/coreos/mantle/platform"
+	"github.com/coreos/mantle/platform/conf"
 	"github.com/coreos/mantle/platform/local"
+	"github.com/coreos/mantle/platform/util"
 	"github.com/coreos/mantle/system/exec"
 )
 
 // QEMUOptions contains QEMU-specific options for the cluster.
-type QEMUOptions struct {
+type Options struct {
 	// DiskImage is the full path to the disk image to boot in QEMU.
 	DiskImage string
 	Board     string
@@ -38,23 +41,23 @@ type QEMUOptions struct {
 	// It can be a plain name, or a full path.
 	BIOSImage string
 
-	*Options
+	*platform.Options
 }
 
-// QEMUCluster is a local cluster of QEMU-based virtual machines.
+// Cluster is a local cluster of QEMU-based virtual machines.
 //
 // XXX: must be exported so that certain QEMU tests can access struct members
 // through type assertions.
-type QEMUCluster struct {
-	*baseCluster
-	conf QEMUOptions
+type Cluster struct {
+	*platform.BaseCluster
+	conf Options
 
 	mu sync.Mutex
 	*local.LocalCluster
 }
 
 type qemuMachine struct {
-	qc          *QEMUCluster
+	qc          *Cluster
 	id          string
 	qemu        exec.Cmd
 	configDrive *local.ConfigDrive
@@ -63,34 +66,35 @@ type qemuMachine struct {
 
 // NewQemuCluster creates a Cluster instance, suitable for running virtual
 // machines in QEMU.
-func NewQemuCluster(conf QEMUOptions) (Cluster, error) {
+func NewCluster(conf Options) (platform.Cluster, error) {
 	lc, err := local.NewLocalCluster()
 	if err != nil {
 		return nil, err
 	}
 
-	bc, err := newBaseCluster(conf.BaseName)
+	bc, err := platform.NewBaseCluster(conf.BaseName)
 	if err != nil {
 		return nil, err
 	}
 
-	qc := &QEMUCluster{
-		baseCluster:  bc,
+	qc := &Cluster{
+		BaseCluster:  bc,
 		conf:         conf,
 		LocalCluster: lc,
 	}
 
-	return Cluster(qc), nil
+	return qc, nil
 }
 
-func (qc *QEMUCluster) Destroy() error {
-	for _, qm := range qc.Machines() {
-		qm.Destroy()
+func (qc *Cluster) Destroy() error {
+	if err := qc.LocalCluster.Destroy(); err != nil {
+		return err
 	}
-	return qc.LocalCluster.Destroy()
+
+	return qc.BaseCluster.Destroy()
 }
 
-func (qc *QEMUCluster) NewMachine(cfg string) (Machine, error) {
+func (qc *Cluster) NewMachine(cfg string) (platform.Machine, error) {
 	id := uuid.NewV4()
 
 	// hacky solution for cloud config ip substitution
@@ -102,7 +106,7 @@ func (qc *QEMUCluster) NewMachine(cfg string) (Machine, error) {
 	cfg = strings.Replace(cfg, "$public_ipv4", ip, -1)
 	cfg = strings.Replace(cfg, "$private_ipv4", ip, -1)
 
-	conf, err := NewConf(cfg)
+	conf, err := conf.New(cfg)
 	if err != nil {
 		qc.mu.Unlock()
 		return nil, err
@@ -191,18 +195,18 @@ func (qc *QEMUCluster) NewMachine(cfg string) (Machine, error) {
 		return nil, err
 	}
 
-	if err := commonMachineChecks(qm); err != nil {
+	if err := util.CommonMachineChecks(qm); err != nil {
 		qm.Destroy()
 		return nil, err
 	}
 
-	qc.addMach(qm)
+	qc.AddMach(qm)
 
-	return Machine(qm), nil
+	return qm, nil
 }
 
 // overrides baseCluster.GetDiscoveryURL
-func (qc *QEMUCluster) GetDiscoveryURL(size int) (string, error) {
+func (qc *Cluster) GetDiscoveryURL(size int) (string, error) {
 	return qc.LocalCluster.GetDiscoveryURL(size)
 }
 
@@ -290,7 +294,7 @@ func (m *qemuMachine) Destroy() error {
 		}
 	}
 
-	m.qc.delMach(m)
+	m.qc.DelMach(m)
 
 	return err
 }

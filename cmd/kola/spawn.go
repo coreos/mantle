@@ -23,6 +23,10 @@ import (
 
 	"github.com/coreos/mantle/kola"
 	"github.com/coreos/mantle/platform"
+	"github.com/coreos/mantle/platform/machine/aws"
+	"github.com/coreos/mantle/platform/machine/gce"
+	"github.com/coreos/mantle/platform/machine/qemu"
+	"github.com/coreos/mantle/platform/util"
 )
 
 var (
@@ -62,11 +66,11 @@ func runSpawn(cmd *cobra.Command, args []string) {
 
 	switch kolaPlatform {
 	case "qemu":
-		cluster, err = platform.NewQemuCluster(kola.QEMUOptions)
+		cluster, err = qemu.NewCluster(kola.QEMUOptions)
 	case "gce":
-		cluster, err = platform.NewGCECluster(kola.GCEOptions)
+		cluster, err = gce.NewCluster(&kola.GCEOptions)
 	case "aws":
-		cluster, err = platform.NewAWSCluster(kola.AWSOptions)
+		cluster, err = aws.NewCluster(&kola.AWSOptions)
 	default:
 		err = fmt.Errorf("invalid platform %q", kolaPlatform)
 	}
@@ -85,7 +89,7 @@ func runSpawn(cmd *cobra.Command, args []string) {
 	}
 
 	if spawnShell {
-		if err := platform.Manhole(mach); err != nil {
+		if err := util.Manhole(mach); err != nil {
 			die("Manhole failed: %v", err)
 		}
 	}

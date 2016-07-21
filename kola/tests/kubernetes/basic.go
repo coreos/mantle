@@ -22,6 +22,7 @@ import (
 
 	"github.com/coreos/mantle/kola/register"
 	"github.com/coreos/mantle/platform"
+	putil "github.com/coreos/mantle/platform/util"
 	"github.com/coreos/mantle/util"
 )
 
@@ -98,7 +99,7 @@ func nodeCheck(master platform.Machine, nodes []platform.Machine) error {
 
 func nginxCheck(master platform.Machine, nodes []platform.Machine) error {
 	pod := strings.NewReader(nginxPodYAML)
-	if err := platform.InstallFile(pod, master, "./nginx-pod.yaml"); err != nil {
+	if err := putil.InstallFile(pod, master, "./nginx-pod.yaml"); err != nil {
 		return err
 	}
 	if _, err := master.SSH("./kubectl create -f nginx-pod.yaml"); err != nil {
@@ -132,10 +133,10 @@ func secretCheck(master platform.Machine, nodes []platform.Machine) error {
 	// create yaml files
 	secret := strings.NewReader(secretYAML)
 	pod := strings.NewReader(secretPodYAML)
-	if err := platform.InstallFile(secret, master, "./secret.yaml"); err != nil {
+	if err := putil.InstallFile(secret, master, "./secret.yaml"); err != nil {
 		return err
 	}
-	if err := platform.InstallFile(pod, master, "./secret-pod.yaml"); err != nil {
+	if err := putil.InstallFile(pod, master, "./secret-pod.yaml"); err != nil {
 		return err
 	}
 

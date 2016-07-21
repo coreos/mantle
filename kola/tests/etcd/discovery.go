@@ -22,6 +22,7 @@ import (
 
 	"github.com/coreos/mantle/kola/register"
 	"github.com/coreos/mantle/platform"
+	putil "github.com/coreos/mantle/platform/util"
 	"github.com/coreos/mantle/util"
 )
 
@@ -96,7 +97,7 @@ func discovery(cluster platform.Cluster, version int) error {
 	if plog.LevelAt(capnslog.DEBUG) {
 		// get journalctl -f from all machines before starting
 		for _, m := range cluster.Machines() {
-			if err := platform.StreamJournal(m); err != nil {
+			if err := putil.StreamJournal(m); err != nil {
 				return fmt.Errorf("failed to start journal: %v", err)
 			}
 		}

@@ -21,6 +21,7 @@ import (
 	"github.com/coreos/pkg/capnslog"
 
 	"github.com/coreos/mantle/platform"
+	"github.com/coreos/mantle/platform/util"
 )
 
 const (
@@ -41,7 +42,7 @@ func RollingUpgrade(cluster platform.TestCluster) error {
 	if plog.LevelAt(capnslog.DEBUG) {
 		// get journalctl -f from all machines before starting
 		for _, m := range cluster.Machines() {
-			if err := platform.StreamJournal(m); err != nil {
+			if err := util.StreamJournal(m); err != nil {
 				return fmt.Errorf("failed to start journal: %v", err)
 			}
 		}
@@ -49,12 +50,12 @@ func RollingUpgrade(cluster platform.TestCluster) error {
 
 	// drop in starting etcd binary
 	plog.Debug("adding files to cluster")
-	if err := cluster.DropFile(firstBin); err != nil {
+	if err := util.DropFile(cluster, firstBin); err != nil {
 		return err
 	}
 
 	// drop in etcd binary to upgrade to
-	if err := cluster.DropFile(secondBin); err != nil {
+	if err := util.DropFile(cluster, secondBin); err != nil {
 		return err
 	}
 

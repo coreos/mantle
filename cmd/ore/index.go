@@ -22,7 +22,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 
-	"github.com/coreos/mantle/auth"
 	"github.com/coreos/mantle/storage"
 	"github.com/coreos/mantle/storage/index"
 )
@@ -81,14 +80,9 @@ func runIndex(cmd *cobra.Command, args []string) {
 	}
 
 	ctx := context.Background()
-	client, err := auth.GoogleClient()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Authentication failed: %v\n", err)
-		os.Exit(1)
-	}
 
 	for _, url := range args {
-		if err := updateTree(ctx, client, url); err != nil {
+		if err := updateTree(ctx, api.Client(), url); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed: %v\n", err)
 			os.Exit(1)
 		}
