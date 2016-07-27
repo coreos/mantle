@@ -230,6 +230,10 @@ func setupDisk(imageFile string) (string, error) {
 	return dstFileName, nil
 }
 
+func (m *qemuMachine) Platform() Platform {
+	return QEMU
+}
+
 func (m *qemuMachine) ID() string {
 	return m.id
 }

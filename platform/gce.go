@@ -125,6 +125,10 @@ func (gc *gceCluster) NewMachine(userdata string) (Machine, error) {
 	return Machine(gm), nil
 }
 
+func (gm *gceMachine) Platform() Platform {
+	return GCE
+}
+
 func (gm *gceMachine) ID() string {
 	return gm.name
 }

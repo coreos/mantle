@@ -34,6 +34,10 @@ type awsMachine struct {
 	mach    *ec2.Instance
 }
 
+func (am *awsMachine) Platform() Platform {
+	return AWS
+}
+
 func (am *awsMachine) ID() string {
 	return *am.mach.InstanceId
 }
