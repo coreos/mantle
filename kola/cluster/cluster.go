@@ -29,6 +29,7 @@ type TestCluster struct {
 	Name        string
 	NativeFuncs []string
 	Options     map[string]string
+	Platform    string
 	platform.Cluster
 }
 
