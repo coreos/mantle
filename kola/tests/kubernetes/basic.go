@@ -57,7 +57,7 @@ func init() {
 				Run:         f,
 				ClusterSize: 0,
 				MinVersion:  min,
-				Platforms:   []string{"gce"},
+				Platforms:   []string{"gce", "aws"},
 			})
 		}
 	}
@@ -66,7 +66,7 @@ func init() {
 // Run basic smoke tests on cluster. Assumes master is machine index 1,
 // workers make up the rest.
 func CoreOSBasic(c cluster.TestCluster, version, runtime string) error {
-	k, err := setupCluster(c, 2, version, runtime)
+	k, err := setupCluster(c, 2, version, runtime, c.Platform)
 	if err != nil {
 		return err
 	}
