@@ -20,5 +20,7 @@ import (
 
 type Options struct {
 	*platform.Options
-	PublishSettingsFile string
+	SubscriptionID        string
+	ManagementURL         string
+	ManagementCertificate []byte
 }

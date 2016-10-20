@@ -35,7 +35,12 @@ type API struct {
 func New(opts *Options) (*API, error) {
 	conf := management.DefaultConfig()
 	conf.APIVersion = "2015-04-01"
-	client, err := management.ClientFromPublishSettingsFileWithConfig(opts.PublishSettingsFile, "", conf)
+
+	if opts.ManagementURL != "" {
+		conf.ManagementURL = opts.ManagementURL
+	}
+
+	client, err := management.NewClientFromConfig(opts.SubscriptionID, opts.ManagementCertificate, conf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create azure client: %v", err)
 	}
