@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/management"
+	"github.com/Azure/azure-sdk-for-go/storage"
 	"github.com/coreos/pkg/capnslog"
 )
 
@@ -38,6 +39,10 @@ func New(opts *Options) (*API, error) {
 
 	if opts.ManagementURL != "" {
 		conf.ManagementURL = opts.ManagementURL
+	}
+
+	if opts.StorageEndpointSuffix == "" {
+		opts.StorageEndpointSuffix = storage.DefaultBaseURL
 	}
 
 	client, err := management.NewClientFromConfig(opts.SubscriptionID, opts.ManagementCertificate, conf)
