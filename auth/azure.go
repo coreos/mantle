@@ -15,7 +15,9 @@
 package auth
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -73,10 +75,20 @@ func (ap *AzureProfile) AsOptions() []azure.Options {
 
 	for _, sub := range ap.Subscriptions {
 		newo := azure.Options{
+			SubscriptionName:      sub.Name,
 			SubscriptionID:        sub.ID,
 			ManagementURL:         sub.ManagementEndpointURL,
-			ManagementCertificate: append([]byte(sub.ManagementCertificate.Key), []byte(sub.ManagementCertificate.Cert)...),
+			ManagementCertificate: bytes.Join([][]byte{[]byte(sub.ManagementCertificate.Key), []byte(sub.ManagementCertificate.Cert)}, []byte("\n")),
 		}
+
+		// find the storage endpoint for the subscription
+		for _, e := range ap.Environments {
+			if e.Name == sub.Name {
+				newo.StorageEndpointSuffix = e.StorageEndpointSuffix
+				break
+			}
+		}
+
 		o = append(o, newo)
 	}
 
@@ -96,7 +108,7 @@ func (ap *AzureProfile) SubscriptionOptions(name string) *azure.Options {
 	if name == "" {
 		return &opts[0]
 	} else {
-		for _, o := range prof.AsOptions() {
+		for _, o := range ap.AsOptions() {
 			if o.SubscriptionName == name {
 				return &o
 			}
