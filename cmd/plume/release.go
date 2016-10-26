@@ -81,6 +81,9 @@ func runRelease(cmd *cobra.Command, args []string) {
 	// Register GCE image if needed.
 	doGCE(ctx, client, src, &spec)
 
+	// make azure image public as created by pre-release
+	doAzure(&spec)
+
 	for _, dSpec := range spec.Destinations {
 		dst, err := storage.NewBucket(client, dSpec.BaseURL)
 		if err != nil {
@@ -334,6 +337,31 @@ func doGCE(ctx context.Context, client *http.Client, src *storage.Bucket, spec *
 			if failures > 5 {
 				plog.Fatalf("Giving up after %d failures.", failures)
 			}
+		}
+	}
+}
+
+func doAzure(spec *channelSpec) {
+	prof, err := auth.ReadAzureProfile(azureProfile)
+	if err != nil {
+		plog.Fatalf("Failed reading Azure profile: %v", err)
+	}
+
+	for _, opt := range prof.AsOptions() {
+		// construct azure api client
+		plog.Printf("Creating Azure API from subscription %q endpoint %q", opt.SubscriptionID, opt.ManagementURL)
+		api, err := azure.New(&opt)
+		if err != nil {
+			plog.Fatalf("failed to create Azure API: %v", err)
+		}
+
+		perm := azure.ImagePermissionPublic
+
+		// channel name should be caps for azure image
+		imageName := fmt.Sprintf("CoreOS-%s-%s", strings.Title(specChannel), specVersion)
+
+		if err := api.ShareImage(imageName, perm); err != nil {
+			plog.Fatalf("Failed setting permissions of Azure image %q to %q: %v", imageName, perm, err)
 		}
 	}
 }

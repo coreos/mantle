@@ -17,6 +17,8 @@ package azure
 import (
 	"encoding/xml"
 	"fmt"
+
+	"github.com/Azure/azure-sdk-for-go/management"
 )
 
 // OSImage struct for https://msdn.microsoft.com/en-us/library/azure/jj157192.aspx call.
@@ -50,7 +52,29 @@ type OSImage struct {
 
 var azureImageShareURL = "services/images/%s/share?permission=%s"
 
-func (a *API) ShareImage(image, permission string) error {
+type ImagePermission string
+
+const (
+	ImagePermissionPublic  ImagePermission = "public"
+	ImagePermissionMSDN    ImagePermission = "msdn"
+	ImagePermissionPrivate ImagePermission = "private"
+)
+
+func (ip ImagePermission) String() string { return string(ip) }
+func (ip ImagePermission) Type() string   { return "ImagePermission" }
+func (ip ImagePermission) Set(v string) error {
+	newip := ImagePermission(v)
+	switch newip {
+	case ImagePermissionPublic, ImagePermissionMSDN, ImagePermissionPrivate:
+		ip = newip
+		return nil
+	}
+
+	return fmt.Errorf("Invalid image permission %q. Valid values are 'public', 'msdn', or 'private'.")
+}
+
+// ShareImage sets permissions on an Azure image.
+func (a *API) ShareImage(image string, permission ImagePermission) error {
 	url := fmt.Sprintf(azureImageShareURL, image, permission)
 	op, err := a.client.SendAzurePutRequest(url, "", nil)
 	if err != nil {
@@ -58,4 +82,9 @@ func (a *API) ShareImage(image, permission string) error {
 	}
 
 	return a.client.WaitForOperation(op, nil)
+}
+
+func IsConflictError(err error) bool {
+	azerr, ok := err.(management.AzureError)
+	return ok && azerr.Code == "ConflictError"
 }
