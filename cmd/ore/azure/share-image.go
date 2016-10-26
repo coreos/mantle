@@ -18,6 +18,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/coreos/mantle/platform/api/azure"
 )
 
 var (
@@ -27,13 +29,11 @@ var (
 		RunE:  runShareImage,
 	}
 
-	sharePermission string
+	sharePermission azure.ImagePermission = azure.ImagePermissionPublic
 )
 
 func init() {
-	sv := cmdShareImage.Flags().StringVar
-
-	sv(&sharePermission, "permission", "public", "Image permission (one of: public, msdn, private)")
+	cmdShareImage.Flags().Var(sharePermission, "permission", "Image permission (one of: public, msdn, private)")
 
 	Azure.AddCommand(cmdShareImage)
 }
