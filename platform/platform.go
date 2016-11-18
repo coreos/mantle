@@ -55,7 +55,7 @@ type Machine interface {
 	PasswordSSHClient(user string, password string) (*ssh.Client, error)
 
 	// SSH runs a single command over a new SSH connection.
-	SSH(cmd string) ([]byte, error)
+	SSH(cmd string) (stdout, stderr []byte, err error)
 
 	// Destroy terminates the machine and frees associated resources.
 	Destroy() error
