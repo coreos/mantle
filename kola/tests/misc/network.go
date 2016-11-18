@@ -44,7 +44,7 @@ func checkListeners(m platform.Machine, protocol string, filter string, listener
 	} else {
 		command = fmt.Sprintf("sudo lsof -i%v", protocol)
 	}
-	output, err := m.SSH(command)
+	output, _, err := m.SSH(command)
 	if err != nil {
 		return fmt.Errorf("Failed to run %s: output %s, status: %v", command, output, err)
 	}

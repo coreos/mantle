@@ -158,7 +158,7 @@ func generateMasterTLSAssets(master platform.Machine, options map[string]string)
 	}
 
 	for _, cmd := range cmds {
-		b, err := master.SSH(cmd)
+		b, _, err := master.SSH(cmd)
 		if err != nil {
 			return fmt.Errorf("Failed on cmd: %s with error: %s and output %s", cmd, err, b)
 		}
@@ -202,7 +202,7 @@ func generateWorkerTLSAssets(master platform.Machine, workers []platform.Machine
 		}
 
 		for _, cmd := range cmds {
-			b, err := worker.SSH(cmd)
+			b, _, err := worker.SSH(cmd)
 			if err != nil {
 				return fmt.Errorf("Failed on cmd: %s with error: %s and output %s", cmd, err, b)
 			}
@@ -226,10 +226,10 @@ func configureKubectl(m platform.Machine, server string, version string) error {
 		kubeURL   = fmt.Sprintf("https://storage.googleapis.com/kubernetes-release/release/%v/bin/linux/amd64/kubectl", version)
 	)
 
-	if _, err := m.SSH("wget -q " + kubeURL); err != nil {
+	if _, _, err := m.SSH("wget -q " + kubeURL); err != nil {
 		return err
 	}
-	if _, err := m.SSH("chmod +x ./kubectl"); err != nil {
+	if _, _, err := m.SSH("chmod +x ./kubectl"); err != nil {
 		return err
 	}
 
@@ -241,7 +241,7 @@ func configureKubectl(m platform.Machine, server string, version string) error {
 		"./kubectl config use-context default-system",
 	}
 	for _, cmd := range cmds {
-		b, err := m.SSH(cmd)
+		b, _, err := m.SSH(cmd)
 		if err != nil {
 			return fmt.Errorf("Failed on cmd: %s with error: %s and output %s", cmd, err, b)
 		}
@@ -264,7 +264,7 @@ func stripSemverSuffix(v string) (string, error) {
 
 // Run and configure the coreos-kubernetes generic install scripts.
 func runInstallScript(m platform.Machine, script string, options map[string]string) error {
-	if _, err := m.SSH("sudo stat /usr/lib/coreos/kubelet-wrapper"); err != nil {
+	if _, _, err := m.SSH("sudo stat /usr/lib/coreos/kubelet-wrapper"); err != nil {
 		return fmt.Errorf("kubelet-wrapper not found on disk")
 	}
 

@@ -117,7 +117,7 @@ func Proxy(c cluster.TestCluster) error {
 
 	// settling...
 	fleetStart := func() error {
-		_, err = proxy.SSH("fleetctl start /home/core/hello.service")
+		_, _, err = proxy.SSH("fleetctl start /home/core/hello.service")
 		if err != nil {
 			return fmt.Errorf("fleetctl start: %s", err)
 		}
@@ -130,7 +130,7 @@ func Proxy(c cluster.TestCluster) error {
 	var status []byte
 
 	fleetList := func() error {
-		status, err = proxy.SSH("fleetctl list-units -l -fields active -no-legend")
+		status, _, err = proxy.SSH("fleetctl list-units -l -fields active -no-legend")
 		if err != nil {
 			return fmt.Errorf("fleetctl list-units: %s", err)
 		}

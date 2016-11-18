@@ -60,7 +60,7 @@ func runQemu(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	out, err := m.SSH("uname -a")
+	out, _, err := m.SSH("uname -a")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "SSH failed: %v\n", err)
 		os.Exit(1)

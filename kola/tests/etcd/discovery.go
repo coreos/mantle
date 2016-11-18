@@ -85,7 +85,7 @@ func doStart(m platform.Machine, version int, block bool) error {
 		etcdStart += " --no-block"
 	}
 
-	_, err := m.SSH(etcdStart)
+	_, _, err := m.SSH(etcdStart)
 	if err != nil {
 		return fmt.Errorf("SSH cmd to %v failed: %s", m.IP(), err)
 	}

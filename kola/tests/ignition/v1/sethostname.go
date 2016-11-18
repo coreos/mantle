@@ -69,7 +69,7 @@ func init() {
 func setHostname(c cluster.TestCluster) error {
 	m := c.Machines()[0]
 
-	out, err := m.SSH("hostnamectl")
+	out, _, err := m.SSH("hostnamectl")
 	if err != nil {
 		return fmt.Errorf("failed to run hostnamectl: %s: %v", out, err)
 	}

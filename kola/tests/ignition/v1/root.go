@@ -104,7 +104,7 @@ func xfsRoot(c cluster.TestCluster) error {
 func testRoot(c cluster.TestCluster, fs string) error {
 	m := c.Machines()[0]
 
-	out, err := m.SSH("findmnt --noheadings --output FSTYPE --target /")
+	out, _, err := m.SSH("findmnt --noheadings --output FSTYPE --target /")
 	if err != nil {
 		return fmt.Errorf("failed to run findmnt: %s: %v", out, err)
 	}

@@ -55,7 +55,7 @@ func gshadowParser(c cluster.TestCluster) error {
 		`sudo sh -c "echo 'grp2:*::root' >> /etc/gshadow"`,
 		`sudo systemd-sysusers`,
 	} {
-		output, err := m.SSH(cmd)
+		output, _, err := m.SSH(cmd)
 		if err != nil {
 			return fmt.Errorf("failed to run %q: output: %q status: %v", cmd, output, err)
 		}

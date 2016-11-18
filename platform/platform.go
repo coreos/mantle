@@ -156,7 +156,7 @@ func ReadFile(m Machine, path string) (io.ReadCloser, error) {
 // InstallFile copies data from in to the path to on m.
 func InstallFile(in io.Reader, m Machine, to string) error {
 	dir := filepath.Dir(to)
-	out, err := m.SSH(fmt.Sprintf("sudo mkdir -p %s", dir))
+	out, _, err := m.SSH(fmt.Sprintf("sudo mkdir -p %s", dir))
 	if err != nil {
 		return fmt.Errorf("failed creating directory %s: %s", dir, out)
 	}
@@ -242,7 +242,7 @@ func NewMachines(c Cluster, userdatas []string) ([]Machine, error) {
 func CheckMachine(m Machine) error {
 	// ensure ssh works
 	sshChecker := func() error {
-		_, err := m.SSH("true")
+		_, _, err := m.SSH("true")
 		if err != nil {
 			return err
 		}
@@ -254,7 +254,7 @@ func CheckMachine(m Machine) error {
 	}
 
 	// ensure we're talking to a CoreOS system
-	out, err := m.SSH("grep ^ID= /etc/os-release")
+	out, _, err := m.SSH("grep ^ID= /etc/os-release")
 	if err != nil {
 		return fmt.Errorf("no /etc/os-release file")
 	}
@@ -264,14 +264,14 @@ func CheckMachine(m Machine) error {
 	}
 
 	// ensure no systemd units failed during boot
-	out, err = m.SSH("systemctl --no-legend --state failed list-units")
+	out, _, err = m.SSH("systemctl --no-legend --state failed list-units")
 	if err != nil {
 		return fmt.Errorf("systemctl: %v: %v", out, err)
 	}
 
 	if len(out) > 0 {
 		if plog.LevelAt(capnslog.DEBUG) {
-			log, err := m.SSH("journalctl -b")
+			log, _, err := m.SSH("journalctl -b")
 			if err != nil {
 				plog.Errorf("Failed to read journal: %v", err)
 			} else {

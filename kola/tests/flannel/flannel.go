@@ -90,7 +90,7 @@ func init() {
 // get docker bridge ip from a machine
 func mach2bip(m platform.Machine, ifname string) (string, error) {
 	// note the escaped % in awk.
-	out, err := m.SSH(fmt.Sprintf(`ip -4 -o addr show dev %s primary | awk -F " +|/" '{printf "%%s", $4}'`, ifname))
+	out, _, err := m.SSH(fmt.Sprintf(`ip -4 -o addr show dev %s primary | awk -F " +|/" '{printf "%%s", $4}'`, ifname))
 	if err != nil {
 		return "", err
 	}
@@ -124,7 +124,7 @@ func ping(a, b platform.Machine, ifname string) error {
 	plog.Infof("ping from %s(%s) to %s(%s)", a.ID(), srcip, b.ID(), dstip)
 
 	cmd := fmt.Sprintf("ping -c 10 -I %s %s", srcip, dstip)
-	out, err := a.SSH(cmd)
+	out, _, err := a.SSH(cmd)
 	if err != nil {
 		return fmt.Errorf("ping from %s to %s failed: %s: %v", a.ID(), b.ID(), out, err)
 	}

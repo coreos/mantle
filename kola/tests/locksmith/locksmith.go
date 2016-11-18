@@ -56,7 +56,7 @@ func locksmithCluster(c cluster.TestCluster) error {
 
 	// make sure etcd is ready
 	etcdCheck := func() error {
-		output, err := machs[0].SSH("locksmithctl status")
+		output, _, err := machs[0].SSH("locksmithctl status")
 		if err != nil {
 			return fmt.Errorf("cluster health: %q: %v", output, err)
 		}
@@ -76,7 +76,7 @@ func locksmithCluster(c cluster.TestCluster) error {
 			// XXX: stop sshd so checkmachine verifies correctly if reboot worked
 			// XXX: run locksmithctl under systemd-run so our current connection doesn't drop suddenly
 			cmd := "sudo systemctl stop sshd.socket; sudo systemd-run --quiet --on-active=2 --no-block locksmithctl send-need-reboot"
-			output, err := m.SSH(cmd)
+			output, _, err := m.SSH(cmd)
 			if err != nil {
 				return fmt.Errorf("failed to run %q: output: %q status: %q", cmd, output, err)
 			}
