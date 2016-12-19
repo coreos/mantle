@@ -36,7 +36,7 @@ func GetClusterHealth(m platform.Machine, csize int) error {
 	var b []byte
 
 	checker := func() error {
-		b, err := m.SSH("etcdctl cluster-health")
+		b, _, err := m.SSH("etcdctl cluster-health")
 		if err != nil {
 			return err
 		}
@@ -61,7 +61,7 @@ func GetClusterHealth(m platform.Machine, csize int) error {
 // run etcd on each cluster machine
 func startEtcd2(m platform.Machine) error {
 	etcdStart := "sudo systemctl start etcd2.service"
-	_, err := m.SSH(etcdStart)
+	_, _, err := m.SSH(etcdStart)
 	if err != nil {
 		return fmt.Errorf("start etcd2.service on %v failed: %s", m.IP(), err)
 	}
@@ -72,7 +72,7 @@ func startEtcd2(m platform.Machine) error {
 func stopEtcd2(m platform.Machine) error {
 	// start etcd instance
 	etcdStop := "sudo systemctl stop etcd2.service"
-	_, err := m.SSH(etcdStop)
+	_, _, err := m.SSH(etcdStop)
 	if err != nil {
 		return fmt.Errorf("stop etcd.2service on failed: %s", err)
 	}
@@ -93,7 +93,7 @@ func setKeys(cluster platform.Cluster, n int) (map[string]string, error) {
 			key := strconv.Itoa(rand.Int())[0:3]
 			value := strconv.Itoa(rand.Int())[0:3]
 
-			b, err := m.SSH(fmt.Sprintf("curl -s -w %%{http_code} -s http://127.0.0.1:2379/v2/keys/%v -XPUT -d value=%v", key, value))
+			b, _, err := m.SSH(fmt.Sprintf("curl -s -w %%{http_code} -s http://127.0.0.1:2379/v2/keys/%v -XPUT -d value=%v", key, value))
 			if err != nil {
 				return nil, err
 			}
@@ -126,7 +126,7 @@ func checkKeys(cluster platform.Cluster, keyMap map[string]string, quorum bool) 
 				cmd = fmt.Sprintf("curl -s http://127.0.0.1:2379/v2/keys/%v", k)
 			}
 
-			b, err := m.SSH(cmd)
+			b, _, err := m.SSH(cmd)
 			if err != nil {
 				return fmt.Errorf("error curling key: %v", err)
 			}
@@ -173,11 +173,11 @@ func replaceEtcd2Bin(m platform.Machine, newPath string) error {
 	override := "\"[Service]\nExecStart=\nExecStart=" + newPath
 	override += "\nEnvironment=ETCD_SNAPSHOT_COUNT=10" + "\"" // make it easy to trigger snapshots
 
-	_, err := m.SSH(fmt.Sprintf("echo %v | sudo tee /run/systemd/system/etcd2.service.d/99-exec.conf", override))
+	_, _, err := m.SSH(fmt.Sprintf("echo %v | sudo tee /run/systemd/system/etcd2.service.d/99-exec.conf", override))
 	if err != nil {
 		return err
 	}
-	_, err = m.SSH("sudo systemctl daemon-reload")
+	_, _, err = m.SSH("sudo systemctl daemon-reload")
 	if err != nil {
 		return err
 	}
@@ -188,7 +188,7 @@ func checkEtcdVersion(cluster platform.Cluster, m platform.Machine, expected str
 	var b []byte
 
 	checker := func() error {
-		out, err := m.SSH(fmt.Sprintf("curl -s -L http://%s:2379/version", m.IP()))
+		out, _, err := m.SSH(fmt.Sprintf("curl -s -L http://%s:2379/version", m.IP()))
 		if err != nil {
 			return fmt.Errorf("curl failed: %v", out)
 		}

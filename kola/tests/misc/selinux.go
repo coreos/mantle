@@ -43,7 +43,7 @@ func SelinuxEnforce(c cluster.TestCluster) error {
 		{"getenforce", true, "Enforcing"},
 		{"systemctl --no-pager is-active system.slice", true, "active"},
 	} {
-		output, err := m.SSH(cmd.cmdline)
+		output, _, err := m.SSH(cmd.cmdline)
 		if err != nil {
 			return fmt.Errorf("failed to run %q: output: %q status: %q", cmd.cmdline, output, err)
 		}

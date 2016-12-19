@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"sync"
 
 	"github.com/coreos/pkg/multierror"
@@ -76,25 +75,31 @@ func (bc *BaseCluster) PasswordSSHClient(ip string, user string, password string
 	return sshClient, nil
 }
 
-func (bc *BaseCluster) SSH(m Machine, cmd string) ([]byte, error) {
+func (bc *BaseCluster) SSH(m Machine, cmd string) (stdout, stderr []byte, err error) {
 	client, err := bc.SSHClient(m.IP())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	defer client.Close()
 
 	session, err := client.NewSession()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	defer session.Close()
+	outBuf := bytes.NewBuffer(nil)
+	errBuf := bytes.NewBuffer(nil)
+	session.Stdout = outBuf
+	session.Stderr = errBuf
 
-	session.Stderr = os.Stderr
-	out, err := session.Output(cmd)
-	out = bytes.TrimSpace(out)
-	return out, err
+	err = session.Run(cmd)
+
+	stdout = bytes.TrimSpace(outBuf.Bytes())
+	stderr = bytes.TrimSpace(errBuf.Bytes())
+
+	return stdout, stderr, err
 }
 
 func (bc *BaseCluster) Machines() []Machine {

@@ -178,7 +178,7 @@ func ext4Root(c cluster.TestCluster) error {
 func testRoot(c cluster.TestCluster, fs string) error {
 	m := c.Machines()[0]
 
-	out, err := m.SSH("findmnt --noheadings --output FSTYPE --target /")
+	out, _, err := m.SSH("findmnt --noheadings --output FSTYPE --target /")
 	if err != nil {
 		return fmt.Errorf("failed to run findmnt: %s: %v", out, err)
 	}
@@ -195,7 +195,7 @@ func ext4CheckExisting(c cluster.TestCluster) error {
 
 	// Redirect /dev/null to stdin so isatty(stdin) fails and the -p flag can be
 	// checked
-	out, err := m.SSH("sudo mkfs.ext4 -p /dev/disk/by-partlabel/ROOT < /dev/null")
+	out, _, err := m.SSH("sudo mkfs.ext4 -p /dev/disk/by-partlabel/ROOT < /dev/null")
 	if err == nil {
 		return fmt.Errorf("mkfs.ext4 returned sucessfully when it should have failed")
 	}

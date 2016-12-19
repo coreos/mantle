@@ -53,7 +53,7 @@ func rktEtcd(t cluster.TestCluster) error {
 
 	etcdCmd := "etcdctl cluster-health"
 	etcdCheck := func() error {
-		output, err := m.SSH(etcdCmd)
+		output, _, err := m.SSH(etcdCmd)
 		if err != nil {
 			return fmt.Errorf("failed to run %q: output: %q status: %q", etcdCmd, output, err)
 		}

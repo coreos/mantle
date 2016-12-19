@@ -42,7 +42,7 @@ func NTP(c cluster.TestCluster) error {
 	}
 	defer m.Destroy()
 
-	out, err := m.SSH("networkctl status eth0")
+	out, _, err := m.SSH("networkctl status eth0")
 	if err != nil {
 		return fmt.Errorf("networkctl: %v", err)
 	}
@@ -53,7 +53,7 @@ func NTP(c cluster.TestCluster) error {
 	plog.Info("Waiting for systemd-timesyncd.service")
 
 	checker := func() error {
-		out, err = m.SSH("systemctl status systemd-timesyncd.service")
+		out, _, err = m.SSH("systemctl status systemd-timesyncd.service")
 		if err != nil {
 			return fmt.Errorf("systemctl: %v", err)
 		}

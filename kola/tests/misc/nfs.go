@@ -99,7 +99,7 @@ func testNFS(c cluster.TestCluster, nfsversion int) error {
 	plog.Info("NFS server booted.")
 
 	/* poke a file in /tmp */
-	tmp, err := m1.SSH("mktemp")
+	tmp, _, err := m1.SSH("mktemp")
 	if err != nil {
 		return fmt.Errorf("Machine.SSH: %s", err)
 	}
@@ -131,7 +131,7 @@ func testNFS(c cluster.TestCluster, nfsversion int) error {
 	plog.Info("Waiting for NFS mount on client...")
 
 	checkmount := func() error {
-		status, err := m2.SSH("systemctl is-active mnt.mount")
+		status, _, err := m2.SSH("systemctl is-active mnt.mount")
 		if err != nil || string(status) != "active" {
 			return fmt.Errorf("mnt.mount status is %q: %v", status, err)
 		}
@@ -144,7 +144,7 @@ func testNFS(c cluster.TestCluster, nfsversion int) error {
 		return err
 	}
 
-	_, err = m2.SSH(fmt.Sprintf("stat /mnt/%s", path.Base(string(tmp))))
+	_, _, err = m2.SSH(fmt.Sprintf("stat /mnt/%s", path.Base(string(tmp))))
 	if err != nil {
 		return fmt.Errorf("file %q does not exist", tmp)
 	}

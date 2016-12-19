@@ -166,7 +166,7 @@ func dockerResources(c cluster.TestCluster) error {
 
 		worker := func(c context.Context) error {
 			// TODO: pass context thru to SSH
-			output, err := m.SSH(cmd)
+			output, _, err := m.SSH(cmd)
 			if err != nil {
 				return fmt.Errorf("failed to run %q: output: %q status: %q", dockerCmd, output, err)
 			}
@@ -198,7 +198,7 @@ func dockerNetwork(c cluster.TestCluster) error {
 
 	listener := func(c context.Context) error {
 		// Will block until a message is recieved
-		out, err := dest.SSH(
+		out, _, err := dest.SSH(
 			`echo "HELLO FROM SERVER" | docker run -i -p 9988:9988 ncat ncat --idle-timeout 20 --listen 0.0.0.0 9988`,
 		)
 		if err != nil {
@@ -215,7 +215,7 @@ func dockerNetwork(c cluster.TestCluster) error {
 	talker := func(c context.Context) error {
 		// Wait until listener is ready before trying anything
 		for {
-			_, err := dest.SSH("sudo lsof -i TCP:9988 -s TCP:LISTEN | grep 9988 -q")
+			_, _, err := dest.SSH("sudo lsof -i TCP:9988 -s TCP:LISTEN | grep 9988 -q")
 			if err == nil {
 				break // socket is ready
 			}
@@ -235,7 +235,7 @@ func dockerNetwork(c cluster.TestCluster) error {
 		}
 
 		srcCmd := fmt.Sprintf(`echo "HELLO FROM CLIENT" | docker run -i ncat ncat %s 9988`, dest.PrivateIP())
-		out, err := src.SSH(srcCmd)
+		out, _, err := src.SSH(srcCmd)
 		if err != nil {
 			return err
 		}
@@ -268,7 +268,7 @@ func dockerOldClient(c cluster.TestCluster) error {
 		return fmt.Errorf("failed to create echo container: %v", err)
 	}
 
-	output, err := m.SSH("/home/core/docker-1.9.1 run echo echo 'IT WORKED'")
+	output, _, err := m.SSH("/home/core/docker-1.9.1 run echo echo 'IT WORKED'")
 	if err != nil {
 		return fmt.Errorf("failed to run old docker client: %q status: %q", output, err)
 	}

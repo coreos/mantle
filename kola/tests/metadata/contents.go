@@ -75,7 +75,7 @@ func init() {
 func verifyAWS(c cluster.TestCluster) error {
 	m := c.Machines()[0]
 
-	out, err := m.SSH("coreos-metadata --version")
+	out, _, err := m.SSH("coreos-metadata --version")
 	if err != nil {
 		return fmt.Errorf("failed to cat /run/metadata/coreos: %s: %v", out, err)
 	}
@@ -100,7 +100,7 @@ func verifyAzure(c cluster.TestCluster) error {
 func verify(c cluster.TestCluster, keys ...string) error {
 	m := c.Machines()[0]
 
-	out, err := m.SSH("cat /run/metadata/coreos")
+	out, _, err := m.SSH("cat /run/metadata/coreos")
 	if err != nil {
 		return fmt.Errorf("failed to cat /run/metadata/coreos: %s: %v", out, err)
 	}
