@@ -43,7 +43,7 @@ function init_config {
     fi
 
     if [ -z $ADVERTISE_IP ]; then
-        export ADVERTISE_IP=$(awk -F= '/COREOS_PRIVATE_IPV4/ {print $2}' /etc/environment)
+        export ADVERTISE_IP=$(awk -F= '/{{.IP_ENV}}/ {print $2}' /etc/environment)
     fi
 
     for REQ in "${REQUIRED[@]}"; do

@@ -328,6 +328,7 @@ func RunTest(t *register.Test, pltfrm, outputDir string) (err error) {
 		NativeFuncs: names,
 		Options:     tempTestOptions,
 		Cluster:     c,
+		Platform:    pltfrm,
 	}
 
 	// drop kolet binary on machines

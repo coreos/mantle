@@ -38,7 +38,7 @@ type kCluster struct {
 
 // Setup a multi-node cluster based on generic scrips from coreos-kubernetes repo.
 // https://github.com/coreos/coreos-kubernetes/tree/master/multi-node/generic
-func setupCluster(c cluster.TestCluster, nodes int, version, runtime string) (*kCluster, error) {
+func setupCluster(c cluster.TestCluster, nodes int, version, runtime, pltfrm string) (*kCluster, error) {
 	// start single-node etcd
 	etcdNode, err := c.NewMachine(etcdConfig)
 	if err != nil {
@@ -62,6 +62,13 @@ func setupCluster(c cluster.TestCluster, nodes int, version, runtime string) (*k
 		"K8S_SERVICE_IP":       "10.3.0.1",
 		"K8S_VER":              version,
 		"CONTAINER_RUNTIME":    runtime,
+	}
+
+	switch pltfrm {
+	case "gce":
+		options["IP_ENV"] = "COREOS_PRIVATE_IPV4"
+	default:
+		options["IP_ENV"] = "COREOS_PUBLIC_IPV4"
 	}
 
 	// generate TLS assets on master
