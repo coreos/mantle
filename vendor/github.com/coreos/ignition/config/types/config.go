@@ -15,15 +15,18 @@
 package types
 
 import (
-	"reflect"
+	"fmt"
 
 	"github.com/coreos/go-semver/semver"
+
+	"github.com/coreos/ignition/config/validate/report"
 )
 
 var (
 	MaxVersion = semver.Version{
-		Major: 2,
-		Minor: 0,
+		Major:      2,
+		Minor:      1,
+		PreRelease: "experimental",
 	}
 )
 
@@ -35,38 +38,51 @@ type Config struct {
 	Passwd   Passwd   `json:"passwd,omitempty"`
 }
 
-func (c Config) AssertValid() error {
-	return assertStructValid(reflect.ValueOf(c))
+func (c Config) Validate() report.Report {
+	r := report.Report{}
+	rules := []rule{
+		checkFilesFilesystems,
+		checkDuplicateFilesystems,
+	}
+
+	for _, rule := range rules {
+		rule(c, &r)
+	}
+	return r
 }
 
-func assertValid(vObj reflect.Value) error {
-	if obj, ok := vObj.Interface().(interface {
-		AssertValid() error
-	}); ok {
-		if err := obj.AssertValid(); err != nil {
-			return err
+type rule func(cfg Config, report *report.Report)
+
+func checkFilesFilesystems(cfg Config, r *report.Report) {
+	filesystems := map[string]struct{}{"root": {}}
+	for _, filesystem := range cfg.Storage.Filesystems {
+		filesystems[filesystem.Name] = struct{}{}
+	}
+	for _, file := range cfg.Storage.Files {
+		if file.Filesystem == "" {
+			// Filesystem was not specified. This is an error, but its handled in types.File's Validate, not here
+			continue
+		}
+		_, ok := filesystems[file.Filesystem]
+		if !ok {
+			r.Add(report.Entry{
+				Kind: report.EntryWarning,
+				Message: fmt.Sprintf("File %q references nonexistent filesystem %q. (This is ok if it is defined in a referenced config)",
+					file.Path, file.Filesystem),
+			})
 		}
 	}
-
-	switch vObj.Kind() {
-	case reflect.Struct:
-		return assertStructValid(vObj)
-	case reflect.Slice:
-		for i := 0; i < vObj.Len(); i++ {
-			if err := assertValid(vObj.Index(i)); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
 }
 
-func assertStructValid(vObj reflect.Value) error {
-	for i := 0; i < vObj.Type().NumField(); i++ {
-		if err := assertValid(vObj.Field(i)); err != nil {
-			return err
+func checkDuplicateFilesystems(cfg Config, r *report.Report) {
+	filesystems := map[string]struct{}{"root": {}}
+	for _, filesystem := range cfg.Storage.Filesystems {
+		if _, ok := filesystems[filesystem.Name]; ok {
+			r.Add(report.Entry{
+				Kind:    report.EntryWarning,
+				Message: fmt.Sprintf("Filesystem %q shadows exising filesystem definition", filesystem.Name),
+			})
 		}
+		filesystems[filesystem.Name] = struct{}{}
 	}
-	return nil
 }
