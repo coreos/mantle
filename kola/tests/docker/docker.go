@@ -16,12 +16,16 @@ package docker
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/coreos/ignition/config"
+	"github.com/coreos/ignition/config/types"
 	"github.com/coreos/pkg/capnslog"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/context"
@@ -40,79 +44,219 @@ var (
 )
 
 func init() {
-	register.Register(&register.Test{
-		Run:         dockerResources,
-		ClusterSize: 1,
-		Name:        "docker.resources",
-		UserData:    `#cloud-config`,
-		// began shipping docker 1.10 in 949, which has all of the
-		// tested resource options.
-		MinVersion: semver.Version{Major: 949},
+	registerDockerTests("resources", dockerTest{
+		test: register.Test{
+			Run:         dockerResources,
+			ClusterSize: 1,
+			// began shipping docker 1.10 in 949, which has all of the
+			// tested resource options.
+			MinVersion: semver.Version{Major: 949},
+		},
 	})
-	register.Register(&register.Test{
-		Run:         dockerNetwork,
-		ClusterSize: 2,
-		Name:        "docker.network",
-		UserData:    `#cloud-config`,
+	registerDockerTests("network", dockerTest{
+		test: register.Test{
+			Run:         dockerNetwork,
+			ClusterSize: 2,
 
-		MinVersion: semver.Version{Major: 1192},
+			MinVersion: semver.Version{Major: 1192},
+		},
 	})
-	register.Register(&register.Test{
-		Run:         dockerOldClient,
-		ClusterSize: 1,
-		Name:        "docker.oldclient",
-		UserData:    `#cloud-config`,
-		MinVersion:  semver.Version{Major: 1192},
+	registerDockerTests("oldclient", dockerTest{
+		test: register.Test{
+			Run:         dockerOldClient,
+			ClusterSize: 1,
+			MinVersion:  semver.Version{Major: 1192},
+		},
 	})
-	register.Register(&register.Test{
-		Run:         dockerUserns,
-		ClusterSize: 1,
-		Name:        "docker.userns",
-		// Source yaml:
-		// https://github.com/coreos/container-linux-config-transpiler
-		/*
-			systemd:
-			  units:
-			  - name: docker.service
-			    enable: true
-			    dropins:
-			      - name: 10-uesrns.conf
-			        contents: |-
-			          [Service]
-			          Environment=DOCKER_OPTS=--userns-remap=dockremap
-			storage:
-			  files:
-			  - filesystem: root
-			    path: /etc/subuid
-			    contents:
-			      inline: "dockremap:100000:65536"
-			  - filesystem: root
-			    path: /etc/subgid
-			    contents:
-			      inline: "dockremap:100000:65536"
-			passwd:
-			  users:
-			  - name: dockremap
-			    create: {}
-		*/
-		Platforms:  []string{"qemu", "gce"}, // aws: https://github.com/coreos/bugs/issues/1826
-		UserData:   `{"ignition":{"version":"2.0.0","config":{}},"storage":{"files":[{"filesystem":"root","path":"/etc/subuid","contents":{"source":"data:,dockremap%3A100000%3A65536","verification":{}},"user":{},"group":{}},{"filesystem":"root","path":"/etc/subgid","contents":{"source":"data:,dockremap%3A100000%3A65536","verification":{}},"user":{},"group":{}}]},"systemd":{"units":[{"name":"docker.service","enable":true,"dropins":[{"name":"10-uesrns.conf","contents":"[Service]\nEnvironment=DOCKER_OPTS=--userns-remap=dockremap"}]}]},"networkd":{},"passwd":{"users":[{"name":"dockremap","create":{}}]}}`,
-		MinVersion: semver.Version{Major: 1192},
+	registerDockerTests("userns", dockerTest{
+		test: register.Test{
+			Run:         dockerUserns,
+			ClusterSize: 1,
+			// Source yaml:
+			// https://github.com/coreos/container-linux-config-transpiler
+			/*
+				systemd:
+				  units:
+				  - name: docker.service
+				    enable: true
+				    dropins:
+				      - name: 10-uesrns.conf
+				        contents: |-
+				          [Service]
+				          Environment=DOCKER_OPTS=--userns-remap=dockremap
+				storage:
+				  files:
+				  - filesystem: root
+				    path: /etc/subuid
+				    contents:
+				      inline: "dockremap:100000:65536"
+				  - filesystem: root
+				    path: /etc/subgid
+				    contents:
+				      inline: "dockremap:100000:65536"
+				passwd:
+				  users:
+				  - name: dockremap
+				    create: {}
+			*/
+			Platforms:  []string{"qemu", "gce"}, // aws: https://github.com/coreos/bugs/issues/1826
+			UserData:   `{"ignition":{"version":"2.0.0","config":{}},"storage":{"files":[{"filesystem":"root","path":"/etc/subuid","contents":{"source":"data:,dockremap%3A100000%3A65536","verification":{}},"user":{},"group":{}},{"filesystem":"root","path":"/etc/subgid","contents":{"source":"data:,dockremap%3A100000%3A65536","verification":{}},"user":{},"group":{}}]},"systemd":{"units":[{"name":"docker.service","enable":true,"dropins":[{"name":"10-uesrns.conf","contents":"[Service]\nEnvironment=DOCKER_OPTS=--userns-remap=dockremap"}]}]},"networkd":{},"passwd":{"users":[{"name":"dockremap","create":{}}]}}`,
+			MinVersion: semver.Version{Major: 1192},
+		},
 	})
-	register.Register(&register.Test{
-		Run:         dockerNetworksReliably,
-		ClusterSize: 1,
-		Name:        "docker.networks-reliably",
-		UserData:    `#cloud-config`,
-		MinVersion:  semver.Version{Major: 1192},
+	registerDockerTests("networks-reliably", dockerTest{
+		test: register.Test{
+			Run:         dockerNetworksReliably,
+			ClusterSize: 1,
+			MinVersion:  semver.Version{Major: 1192},
+		},
 	})
-	register.Register(&register.Test{
-		Run:         dockerUserNoCaps,
-		ClusterSize: 1,
-		Name:        "docker.user-no-caps",
-		UserData:    `#cloud-config`,
-		MinVersion:  semver.Version{Major: 1192},
+	registerDockerTests("userns-no-caps", dockerTest{
+		test: register.Test{
+			Run:         dockerUserNoCaps,
+			ClusterSize: 1,
+			MinVersion:  semver.Version{Major: 1192},
+		},
 	})
+
+	registerDockerTests("skim1126", dockerTest{
+		test: register.Test{
+			Run:         dockerSkim1126Version,
+			ClusterSize: 1,
+			MinVersion:  semver.Version{Major: 1192},
+		},
+		targets: []dockerTestTarget{dockerTestTargetSkim1126},
+	})
+}
+
+type dockerTestTarget string
+
+const (
+	dockerTestTargetHost     dockerTestTarget = "docker-host"
+	dockerTestTargetSkim1126                  = "docker-skim-1.12.6"
+)
+
+type dockerTestRegistrationFn func(name string, t dockerTest)
+
+var targetMap = map[dockerTestTarget]dockerTestRegistrationFn{
+	dockerTestTargetHost:     targetHostDocker,
+	dockerTestTargetSkim1126: targetDockerSkim1126,
+}
+
+type dockerTest struct {
+	// test specifies the test to register.
+	// Note that the 'name', 'userdata', and 'platform' variables may be modified
+	// by a given registration function
+	test register.Test
+	// targets, if set, will choose the specific docker targets for this test
+	// from the above list.  If unset or empty, all targets will be run
+	// Only ignition config is supported by the docker skim target.
+	targets []dockerTestTarget
+}
+
+func targetDockerSkim1126(name string, t dockerTest) {
+	test := &t.test
+	currentPlatforms := test.Platforms
+	dockerSkimPlatforms := []string{"aws", "gce"}
+
+	// Filter for the set of supported platforms from those the caller chose
+	supportedSpecifiedPlatforms := currentPlatforms[:0]
+	for _, platform := range currentPlatforms {
+		for _, supported := range dockerSkimPlatforms {
+			if supported == platform {
+				supportedSpecifiedPlatforms = append(supportedSpecifiedPlatforms, platform)
+				break
+			}
+		}
+	}
+
+	if len(currentPlatforms) == 0 {
+		// Default to the full supported set
+		test.Platforms = dockerSkimPlatforms
+	} else {
+		test.Platforms = supportedSpecifiedPlatforms
+	}
+
+	test.Name = fmt.Sprintf("%s.%s", dockerTestTargetSkim1126, name)
+
+	ign := types.Config{
+		Ignition: types.Ignition{
+			Version: types.IgnitionVersion(semver.Version{
+				Major: 2,
+				Minor: 0,
+				Patch: 0,
+			}),
+		},
+	}
+	if test.UserData != "" {
+		var err error
+		ign, err = config.Parse([]byte(test.UserData))
+		if err != nil {
+			log.Fatalf("invalid ignition config for %v: %v", test.Name, err)
+		}
+	}
+
+	skimUnit := types.SystemdUnit{
+		Name: "docker.service",
+		// https://github.com/coreos/docker-skim/blob/master/Documentation/using-docker-skim.md
+		Contents: `
+[Unit]
+Description=Docker Application Container Engine
+Documentation=http://docs.docker.com
+After=docker.socket
+Requires=docker.socket
+
+[Service]
+Type=simple
+
+ExecStart=/usr/bin/rkt run --dns=host --interactive \
+  --trust-keys-from-https \
+  --stage1-name=users.developer.core-os.net/skim/stage1-skim:0.0.1 \
+  users.developer.core-os.net/skim/docker:1.12.6_coreos.0 \
+  --exec=/usr/lib/coreos/dockerd -- \
+  --host=fd:// $DOCKER_OPTS $DOCKER_CGROUPS $DOCKER_OPT_BIP $DOCKER_OPT_MTU $DOCKER_OPT_IPMASQ
+
+ExecReload=/bin/kill -s HUP $MAINPID
+LimitNOFILE=1048576
+LimitNPROC=infinity
+LimitCORE=infinity
+TasksMax=infinity
+TimeoutStartSec=0
+# set delegate yes so that systemd does not reset the cgroups of docker containers
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target`,
+	}
+
+	// Modify ignition to force skim to be used
+	ign.Systemd.Units = append(ign.Systemd.Units, skimUnit)
+	ignConfigData, err := json.Marshal(ign)
+	if err != nil {
+		log.Fatalf("unable to marshal ignition config: %v", err)
+	}
+	test.UserData = string(ignConfigData)
+
+	register.Register(test)
+}
+
+func targetHostDocker(name string, t dockerTest) {
+	test := &t.test
+	test.Name = fmt.Sprintf("%s.%s", dockerTestTargetHost, name)
+	if test.UserData == "" {
+		test.UserData = "#cloud-config"
+	}
+	register.Register(test)
+}
+
+func registerDockerTests(name string, t dockerTest) {
+	targets := t.targets
+	if len(targets) == 0 {
+		targets = []dockerTestTarget{dockerTestTargetSkim1126, dockerTestTargetHost}
+	}
+	for _, target := range targets {
+		targetMap[target](name, t)
+	}
 }
 
 // make a docker container out of binaries on the host
@@ -398,6 +542,20 @@ func dockerUserNoCaps(c cluster.TestCluster) error {
 	// Finally, check for fail/success on reading /root
 	if !strings.HasPrefix(outputlines[len(outputlines)-1], "PASS: ") {
 		return fmt.Errorf("reading /root test failed: %q", string(output))
+	}
+
+	return nil
+}
+
+func dockerSkim1126Version(c cluster.TestCluster) error {
+	m := c.Machines()[0]
+
+	output, err := m.SSH(`docker version -f '{{.Server.Version}}'`)
+	if err != nil {
+		return fmt.Errorf("error determining version: %v, %v", err, string(output))
+	}
+	if strings.TrimSpace(string(output)) != "1.12.6" {
+		return fmt.Errorf("expected 1.12.6; got %v", string(output))
 	}
 
 	return nil
