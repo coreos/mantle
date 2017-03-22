@@ -85,6 +85,12 @@ func MakeBootkubeCluster(cloud platform.Cluster, config BootkubeConfig) (*pluton
 		return nil, fmt.Errorf("Must specify at least 1 initial master for the bootstrap node")
 	}
 
+	// parse hyperkube version from service file
+	info, err := getVersionFromService(files.kubeletMaster)
+	if err != nil {
+		return nil, fmt.Errorf("error determining kubernetes version: %v", err)
+	}
+
 	// provision master node running etcd
 	masterConfig, err := renderNodeConfig(files.kubeletMaster, true, !config.SelfHostEtcd)
 	if err != nil {
@@ -101,24 +107,6 @@ func MakeBootkubeCluster(cloud platform.Cluster, config BootkubeConfig) (*pluton
 	}
 	plog.Infof("Master VM (%s) started. It's IP is %s.", master.ID(), master.IP())
 
-	// TODO(pb): as soon as we have masterIP, start additional workers/masters in parallel with bootkube start
-
-	// start bootkube on master
-	if err := bootstrapMaster(master, config.ImageRepo, config.ImageTag, config.SelfHostEtcd); err != nil {
-		return nil, err
-	}
-
-	// parse hyperkube version from service file
-	info, err := getVersionFromService(files.kubeletMaster)
-	if err != nil {
-		return nil, fmt.Errorf("error determining kubernetes version: %v", err)
-	}
-
-	// install kubectl on master
-	if err := installKubectl(master, info.UpstreamVersion); err != nil {
-		return nil, err
-	}
-
 	manager := &BootkubeManager{
 		Cluster:   cloud,
 		firstNode: master,
@@ -126,9 +114,32 @@ func MakeBootkubeCluster(cloud platform.Cluster, config BootkubeConfig) (*pluton
 		info:      info,
 	}
 
-	// provision additional nodes
-	masters, workers, err := manager.provisionNodes(config.InitialMasters-1, config.InitialWorkers)
-	if err != nil {
+	// start bootkube on master in parallel with provisioning additional machines
+	var (
+		wg               sync.WaitGroup
+		bootErr, nodeErr error
+		masters, workers []platform.Machine
+	)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		bootErr = bootstrapMaster(master, config.ImageRepo, config.ImageTag, config.SelfHostEtcd)
+	}()
+	go func() {
+		defer wg.Done()
+		masters, workers, nodeErr = manager.provisionNodes(config.InitialMasters-1, config.InitialWorkers)
+	}()
+	wg.Wait()
+
+	if bootErr != nil {
+		return nil, bootErr
+	}
+	if nodeErr != nil {
+		return nil, nodeErr
+	}
+
+	// install kubectl on master
+	if err := installKubectl(master, info.UpstreamVersion); err != nil {
 		return nil, err
 	}
 
