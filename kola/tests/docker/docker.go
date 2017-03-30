@@ -40,79 +40,87 @@ var (
 )
 
 func init() {
-	register.Register(&register.Test{
-		Run:         dockerResources,
-		ClusterSize: 1,
-		Name:        "docker.resources",
-		UserData:    `#cloud-config`,
-		// began shipping docker 1.10 in 949, which has all of the
-		// tested resource options.
-		MinVersion: semver.Version{Major: 949},
+	registerDockerTests(dockerTest{
+		name: "resources",
+		test: register.Test{
+			Run:         dockerResources,
+			ClusterSize: 1,
+			// began shipping docker 1.10 in 949, which has all of the
+			// tested resource options.
+			MinVersion: semver.Version{Major: 949},
+		},
 	})
-	register.Register(&register.Test{
-		Run:         dockerNetwork,
-		ClusterSize: 2,
-		Name:        "docker.network",
-		UserData:    `#cloud-config`,
+	registerDockerTests(dockerTest{
+		name: "network",
+		test: register.Test{
+			Run:         dockerNetwork,
+			ClusterSize: 2,
 
-		MinVersion: semver.Version{Major: 1192},
+			MinVersion: semver.Version{Major: 1192},
+		},
 	})
-	register.Register(&register.Test{
-		Run:         dockerOldClient,
-		ClusterSize: 1,
-		Name:        "docker.oldclient",
-		UserData:    `#cloud-config`,
-		MinVersion:  semver.Version{Major: 1192},
+	registerDockerTests(dockerTest{
+		name: "oldclient",
+		test: register.Test{
+			Run:         dockerOldClient,
+			ClusterSize: 1,
+			MinVersion:  semver.Version{Major: 1192},
+		},
 	})
-	register.Register(&register.Test{
-		Run:         dockerUserns,
-		ClusterSize: 1,
-		Name:        "docker.userns",
-		// Source yaml:
-		// https://github.com/coreos/container-linux-config-transpiler
-		/*
-			systemd:
-			  units:
-			  - name: docker.service
-			    enable: true
-			    dropins:
-			      - name: 10-uesrns.conf
-			        contents: |-
-			          [Service]
-			          Environment=DOCKER_OPTS=--userns-remap=dockremap
-			storage:
-			  files:
-			  - filesystem: root
-			    path: /etc/subuid
-			    contents:
-			      inline: "dockremap:100000:65536"
-			  - filesystem: root
-			    path: /etc/subgid
-			    contents:
-			      inline: "dockremap:100000:65536"
-			passwd:
-			  users:
-			  - name: dockremap
-			    create: {}
-		*/
-		Platforms:  []string{"qemu", "gce"}, // aws: https://github.com/coreos/bugs/issues/1826
-		UserData:   `{"ignition":{"version":"2.0.0","config":{}},"storage":{"files":[{"filesystem":"root","path":"/etc/subuid","contents":{"source":"data:,dockremap%3A100000%3A65536","verification":{}},"user":{},"group":{}},{"filesystem":"root","path":"/etc/subgid","contents":{"source":"data:,dockremap%3A100000%3A65536","verification":{}},"user":{},"group":{}}]},"systemd":{"units":[{"name":"docker.service","enable":true,"dropins":[{"name":"10-uesrns.conf","contents":"[Service]\nEnvironment=DOCKER_OPTS=--userns-remap=dockremap"}]}]},"networkd":{},"passwd":{"users":[{"name":"dockremap","create":{}}]}}`,
-		MinVersion: semver.Version{Major: 1192},
+	registerDockerTests(dockerTest{
+		name: "userns",
+		test: register.Test{
+			Run:         dockerUserns,
+			ClusterSize: 1,
+			// Source yaml:
+			// https://github.com/coreos/container-linux-config-transpiler
+			/*
+				systemd:
+				  units:
+				  - name: docker.service
+				    enable: true
+				    dropins:
+				      - name: 10-uesrns.conf
+				        contents: |-
+				          [Service]
+				          Environment=DOCKER_OPTS=--userns-remap=dockremap
+				storage:
+				  files:
+				  - filesystem: root
+				    path: /etc/subuid
+				    contents:
+				      inline: "dockremap:100000:65536"
+				  - filesystem: root
+				    path: /etc/subgid
+				    contents:
+				      inline: "dockremap:100000:65536"
+				passwd:
+				  users:
+				  - name: dockremap
+				    create: {}
+			*/
+			Platforms:  []string{"qemu", "gce"}, // aws: https://github.com/coreos/bugs/issues/1826
+			UserData:   `{"ignition":{"version":"2.0.0","config":{}},"storage":{"files":[{"filesystem":"root","path":"/etc/subuid","contents":{"source":"data:,dockremap%3A100000%3A65536","verification":{}},"user":{},"group":{}},{"filesystem":"root","path":"/etc/subgid","contents":{"source":"data:,dockremap%3A100000%3A65536","verification":{}},"user":{},"group":{}}]},"systemd":{"units":[{"name":"docker.service","enable":true,"dropins":[{"name":"10-uesrns.conf","contents":"[Service]\nEnvironment=DOCKER_OPTS=--userns-remap=dockremap"}]}]},"networkd":{},"passwd":{"users":[{"name":"dockremap","create":{}}]}}`,
+			MinVersion: semver.Version{Major: 1192},
+		},
 	})
-	register.Register(&register.Test{
-		Run:         dockerNetworksReliably,
-		ClusterSize: 1,
-		Name:        "docker.networks-reliably",
-		UserData:    `#cloud-config`,
-		MinVersion:  semver.Version{Major: 1192},
+	registerDockerTests(dockerTest{
+		name: "networks-reliably",
+		test: register.Test{
+			Run:         dockerNetworksReliably,
+			ClusterSize: 1,
+			MinVersion:  semver.Version{Major: 1192},
+		},
 	})
-	register.Register(&register.Test{
-		Run:         dockerUserNoCaps,
-		ClusterSize: 1,
-		Name:        "docker.user-no-caps",
-		UserData:    `#cloud-config`,
-		MinVersion:  semver.Version{Major: 1192},
+	registerDockerTests(dockerTest{
+		name: "userns-no-caps",
+		test: register.Test{
+			Run:         dockerUserNoCaps,
+			ClusterSize: 1,
+			MinVersion:  semver.Version{Major: 1192},
+		},
 	})
+
 }
 
 // make a docker container out of binaries on the host
