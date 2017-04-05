@@ -25,6 +25,7 @@ import (
 	"github.com/coreos/mantle/harness"
 	"github.com/coreos/mantle/lunaform/tfdata"
 	"github.com/coreos/mantle/network"
+	"github.com/coreos/mantle/platform"
 	"github.com/coreos/mantle/platform/conf"
 )
 
@@ -95,6 +96,7 @@ type Cluster struct {
 	*harness.H
 	test     Test
 	sshAgent *network.SSHAgent
+	machines []platform.Machine
 }
 
 func newCluster(h *harness.H, test Test) *Cluster {
@@ -183,6 +185,16 @@ func (c *Cluster) readOutputs() {
 		len(parsed.RemoteIPs.Value) != n {
 		c.Fatalf("List lengths are not %d: %#v", n, parsed)
 	}
+
+	c.machines = make([]platform.Machine, n)
+	for i := 0; i < n; i++ {
+		c.machines[i] = &machine{
+			cluster:  c,
+			name:     parsed.Names.Value[i],
+			localIP:  parsed.LocalIPs.Value[i],
+			remoteIP: parsed.RemoteIPs.Value[i],
+		}
+	}
 }
 
 func (c *Cluster) setup() {
@@ -203,6 +215,13 @@ func (c *Cluster) setup() {
 	}
 
 	c.readOutputs()
+
+	// TODO: parallel
+	for _, m := range c.machines {
+		if err := m.(*machine).setup(); err != nil {
+			c.Fatalf("instance %s failed: %v", m.ID(), err)
+		}
+	}
 }
 
 func (c *Cluster) destroy() {
@@ -212,10 +231,22 @@ func (c *Cluster) destroy() {
 		c.Errorf("terraform destroy failed: %v", err)
 	}
 
+	// free up local resources, no need to be parallel.
+	for _, m := range c.machines {
+		if err := m.(*machine).destroy(); err != nil {
+			c.Errorf("instance %s failed: %v", m.ID(), err)
+		}
+	}
+	c.machines = nil
+
 	if c.sshAgent != nil {
 		if err := c.sshAgent.Close(); err != nil {
 			c.Errorf("ssh agent failed: %v", err)
 		}
 		c.sshAgent = nil
 	}
+}
+
+func (c *Cluster) Machines() []platform.Machine {
+	return c.machines
 }
