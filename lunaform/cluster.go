@@ -99,6 +99,8 @@ type Cluster struct {
 	machines []platform.Machine
 }
 
+var _ platform.Cluster = &Cluster{}
+
 func newCluster(h *harness.H, test Test) *Cluster {
 	return &Cluster{H: h, test: test}
 }
@@ -249,4 +251,19 @@ func (c *Cluster) destroy() {
 
 func (c *Cluster) Machines() []platform.Machine {
 	return c.machines
+}
+
+// currently adding machines on the fly isn't implemented
+func (c *Cluster) NewMachine(config string) (platform.Machine, error) {
+	panic("NewMachine not supported")
+}
+
+// TODO and/or possibly removed from the Cluster interface
+func (c *Cluster) GetDiscoveryURL(size int) (string, error) {
+	panic("GetDiscoveryURL not supported")
+}
+
+// cluster destruction is tied to test execution so no public method
+func (c *Cluster) Destroy() error {
+	panic("Destroy not supported")
 }
