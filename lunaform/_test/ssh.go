@@ -23,6 +23,7 @@ func init() {
 		Name:        "ssh",
 		Run:         ssh,
 		ClusterSize: 3,
+		UserData:    `{"ignition": { "version": "2.0.0" }}`,
 	})
 }
 

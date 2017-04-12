@@ -121,7 +121,7 @@ func (c *Cluster) writeInputs() {
 }
 
 func (c *Cluster) writeUserData() {
-	data, err := conf.New(`{"ignition": { "version": "2.0.0" }}`)
+	data, err := conf.New(c.test.UserData)
 	if err != nil {
 		c.Fatalf("parsing user data failed: %v", err)
 	}

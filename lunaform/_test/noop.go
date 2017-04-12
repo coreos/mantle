@@ -23,6 +23,7 @@ func init() {
 		Name:        "noop",
 		Run:         noop,
 		ClusterSize: 1,
+		UserData:    `{"ignition": { "version": "2.0.0" }}`,
 	})
 }
 

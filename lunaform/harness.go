@@ -24,6 +24,7 @@ import (
 type Test struct {
 	Name        string
 	ClusterSize int
+	UserData    string
 	Run         func(c *Cluster)
 }
 
