@@ -24,6 +24,7 @@ ExecStart=/bin/bash -c "while true; do echo \"Hello, world\"; sleep 1; done"
 // unit file.
 func TestFleetctlRunService() error {
 	serviceName := "hello.service"
+	blockAttempts := "40"
 
 	serviceFile, err := os.Create(path.Join(os.TempDir(), serviceName))
 	if err != nil {
@@ -54,12 +55,12 @@ func TestFleetctlRunService() error {
 		return err
 	}
 
-	stdout, stderr, err := Run("fleetctl", "start", "-block-attempts", "20", serviceFile.Name())
+	stdout, stderr, err := Run("fleetctl", "start", "-block-attempts", blockAttempts, serviceFile.Name())
 	if err != nil {
 		return fmt.Errorf("fleetctl start failed with error: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
 	}
 
-	stdout, stderr, err = Run("fleetctl", "unload", "-block-attempts", "20", serviceName)
+	stdout, stderr, err = Run("fleetctl", "unload", "-block-attempts", blockAttempts, serviceName)
 	if err != nil {
 		return fmt.Errorf("fleetctl unload failed with error: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
 	}
