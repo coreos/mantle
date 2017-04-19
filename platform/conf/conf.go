@@ -40,7 +40,7 @@ type Conf struct {
 func New(userdata string) (*Conf, error) {
 	c := &Conf{}
 
-	ignc, err := v2.Parse([]byte(userdata))
+	ignc, _, err := v2.Parse([]byte(userdata))
 	switch err {
 	case v2.ErrEmpty:
 		// empty, noop

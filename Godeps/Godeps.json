@@ -513,23 +513,23 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/ignition/config",
-			"Comment": "v0.7.0",
-			"Rev": "46a72ce19640f120f57ff0d29892911a43cbeb71"
+			"Comment": "v0.13.0",
+			"Rev": "1558ff0cb2d341150ea706225451ff5553554e8b"
 		},
 		{
 			"ImportPath": "github.com/coreos/ignition/config/types",
-			"Comment": "v0.7.0",
-			"Rev": "46a72ce19640f120f57ff0d29892911a43cbeb71"
+			"Comment": "v0.13.0",
+			"Rev": "1558ff0cb2d341150ea706225451ff5553554e8b"
 		},
 		{
 			"ImportPath": "github.com/coreos/ignition/config/v1",
-			"Comment": "v0.7.0",
-			"Rev": "46a72ce19640f120f57ff0d29892911a43cbeb71"
+			"Comment": "v0.13.0",
+			"Rev": "1558ff0cb2d341150ea706225451ff5553554e8b"
 		},
 		{
 			"ImportPath": "github.com/coreos/ignition/config/v1/types",
-			"Comment": "v0.7.0",
-			"Rev": "46a72ce19640f120f57ff0d29892911a43cbeb71"
+			"Comment": "v0.13.0",
+			"Rev": "1558ff0cb2d341150ea706225451ff5553554e8b"
 		},
 		{
 			"ImportPath": "github.com/coreos/ioprogress",
@@ -917,6 +917,56 @@
 			"ImportPath": "google.golang.org/grpc/transport",
 			"Comment": "v1.0.0-6-g02fca89",
 			"Rev": "02fca896ff5f50c6bbbee0860345a49344b37a03"
+		},
+		{
+			"ImportPath": "github.com/coreos/ignition/config/vendor/github.com/ajeddeloh/go-json",
+			"Comment": "v0.13.0",
+			"Rev": "1558ff0cb2d341150ea706225451ff5553554e8b"
+		},
+		{
+			"ImportPath": "github.com/coreos/ignition/config/v2_0",
+			"Comment": "v0.13.0",
+			"Rev": "1558ff0cb2d341150ea706225451ff5553554e8b"
+		},
+		{
+			"ImportPath": "github.com/coreos/ignition/config/v2_0/types",
+			"Comment": "v0.13.0",
+			"Rev": "1558ff0cb2d341150ea706225451ff5553554e8b"
+		},
+		{
+			"ImportPath": "github.com/coreos/ignition/config/validate",
+			"Comment": "v0.13.0",
+			"Rev": "1558ff0cb2d341150ea706225451ff5553554e8b"
+		},
+		{
+			"ImportPath": "github.com/coreos/ignition/config/validate/astjson",
+			"Comment": "v0.13.0",
+			"Rev": "1558ff0cb2d341150ea706225451ff5553554e8b"
+		},
+		{
+			"ImportPath": "github.com/coreos/ignition/config/validate/report",
+			"Comment": "v0.13.0",
+			"Rev": "1558ff0cb2d341150ea706225451ff5553554e8b"
+		},
+		{
+			"ImportPath": "github.com/coreos/ignition/config/vendor/github.com/vincent-petithory/dataurl",
+			"Comment": "v0.13.0",
+			"Rev": "1558ff0cb2d341150ea706225451ff5553554e8b"
+		},
+		{
+			"ImportPath": "github.com/coreos/ignition/config/vendor/go4.org/errorutil",
+			"Comment": "v0.13.0",
+			"Rev": "1558ff0cb2d341150ea706225451ff5553554e8b"
+		},
+		{
+			"ImportPath": "github.com/coreos/ignition/config/vendor/github.com/coreos/go-semver/semver",
+			"Comment": "v0.13.0",
+			"Rev": "1558ff0cb2d341150ea706225451ff5553554e8b"
+		},
+		{
+			"ImportPath": "github.com/coreos/ignition/config/vendor/github.com/coreos/go-systemd/unit",
+			"Comment": "v0.13.0",
+			"Rev": "1558ff0cb2d341150ea706225451ff5553554e8b"
 		}
 	]
 }
