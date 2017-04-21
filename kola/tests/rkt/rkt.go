@@ -30,7 +30,11 @@ var conf = `{
 	"systemd": {
 		"units": [{
 			"name": "etcd-member.service",
-			"enable": true
+			"enable": true,
+			"dropins": [{
+				"name": "fix-test-races.conf",
+				"contents": "[Unit]\nBefore=sshd.service"
+			}]
 		}]
 	}
 }`
