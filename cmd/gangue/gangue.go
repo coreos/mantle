@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -41,6 +42,7 @@ var (
 		Run:   run,
 	}
 
+	coreosBoard, coreosVersion   string
 	gpgKeyFile, jsonKeyFile      string
 	keepSig, serviceAuth, verify bool
 )
@@ -48,6 +50,10 @@ var (
 func init() {
 	bv := get.PersistentFlags().BoolVar
 	sv := get.PersistentFlags().StringVar
+
+	board, version := getReleaseInfo()
+	sv(&coreosBoard, "coreos-board", board, "select a release board for searching packages")
+	sv(&coreosVersion, "coreos-version", version, "select a release version for searching packages")
 
 	bv(&serviceAuth, "service-auth", false, "use non-interactive auth when running within GCE")
 	sv(&jsonKeyFile, "json-key", "", "use a service account's JSON key for authentication")
@@ -57,6 +63,7 @@ func init() {
 	root.AddCommand(get)
 }
 
+// Ensure the given URL correctly points to a file on Google Storage
 func validateGSURL(rawURL string) error {
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
@@ -77,34 +84,36 @@ func validateGSURL(rawURL string) error {
 	return nil
 }
 
+// Download a file using all the given command-line settings
+func downloadURL(client *http.Client, source, output string) (err error) {
+	if verify {
+		err = sdk.UpdateSignedFile(output, source, client, gpgKeyFile)
+		if err == nil && !keepSig {
+			err = os.Remove(output + ".sig")
+		}
+	} else {
+		err = sdk.UpdateFile(output, source, client)
+	}
+	return
+}
+
 func run(cmd *cobra.Command, args []string) {
 	var client *http.Client
 	var output, source string
+	var err error
 
 	if len(args) == 2 {
 		source = args[0]
 		output = args[1]
+		if output == "" {
+			output = "."
+		}
 	} else if len(args) == 1 {
 		source = args[0]
 		output = "."
 	} else {
 		fmt.Fprintf(os.Stderr, "Expected one or two arguments\n")
 		os.Exit(1)
-	}
-
-	// Perform some basic sanity checks on the options
-	err := validateGSURL(source)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-	if output == "" {
-		output = "."
-	}
-
-	// If the output path exists and is a directory, keep the file name
-	if stat, err := os.Stat(output); err == nil && stat.IsDir() {
-		output = path.Join(output, path.Base(source))
 	}
 
 	// Authenticate with Google
@@ -125,16 +134,28 @@ func run(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// Download the file and verify it (unless disabled)
-	if verify {
-		err = sdk.UpdateSignedFile(output, source, client, gpgKeyFile)
-		if err == nil && !keepSig {
-			err = os.Remove(output + ".sig")
+	// Construct a URL when given <category>/<package> or just <package>
+	if fs := strings.IndexByte(source, '/'); fs < 0 || fs > 0 && strings.LastIndexByte(source, '/') == fs {
+		if source, err = findPackageURL(client, source); err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
 		}
-	} else {
-		err = sdk.UpdateFile(output, source, client)
 	}
+
+	// Validate the URL before using it
+	err = validateGSURL(source)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+
+	// If the output path exists and is a directory, keep the file name
+	if stat, err := os.Stat(output); err == nil && stat.IsDir() {
+		output = path.Join(output, path.Base(source))
+	}
+
+	// Download the file and verify it (unless disabled)
+	if err = downloadURL(client, source, output); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
