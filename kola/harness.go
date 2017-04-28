@@ -220,6 +220,18 @@ func RunTests(pattern, pltfrm, outputDir string) error {
 func getClusterSemver(pltfrm, outputDir string) (*semver.Version, error) {
 	var err error
 
+	// refuse to use the outputDir if someone else is
+	// don't create the marker if it doesn't exist, since that would
+	// defeat harness' safety checks
+	marker := filepath.Join(outputDir, harness.MarkerFileName)
+	if _, err := os.Stat(marker); err == nil || !os.IsNotExist(err) {
+		lockfile, err := system.Lockfile(marker)
+		if err != nil {
+			return nil, fmt.Errorf("kola: output directory still in use: %v", err)
+		}
+		defer lockfile.Close()
+	}
+
 	testDir := filepath.Join(outputDir, "get_cluster_semver")
 	if err := os.MkdirAll(testDir, 0777); err != nil {
 		return nil, err
