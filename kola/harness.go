@@ -346,16 +346,29 @@ func scpKolet(c cluster.TestCluster, mArch string) {
 }
 
 // CleanOutputDir creates an empty directory, any existing data will be wiped!
-func CleanOutputDir(outputDir string) (string, error) {
+// Returns the path to the directory, and an *os.File with a file lock acquired.
+func CleanOutputDir(outputDir string) (string, *os.File, error) {
 	outputDir = filepath.Clean(outputDir)
 	if outputDir == "." {
-		return "", fmt.Errorf("kola: missing output directory path")
+		return "", nil, fmt.Errorf("kola: missing output directory path")
+	}
+	marker := filepath.Join(outputDir, harness.MarkerFileName)
+	if _, err := os.Stat(outputDir); err == nil || !os.IsNotExist(err) {
+		lockfile, err := system.Lockfile(marker)
+		if err != nil {
+			return "", nil, fmt.Errorf("kola: output directory still in use: %v", err)
+		}
+		defer lockfile.Close()
 	}
 	if err := os.RemoveAll(outputDir); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if err := os.MkdirAll(outputDir, 0777); err != nil {
-		return "", err
+		return "", nil, err
 	}
-	return outputDir, nil
+	lockfile, err := system.Lockfile(marker)
+	if err != nil {
+		return "", nil, err
+	}
+	return outputDir, lockfile, nil
 }

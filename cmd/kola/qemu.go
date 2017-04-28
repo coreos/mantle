@@ -47,11 +47,12 @@ func runQemu(cmd *cobra.Command, args []string) {
 		os.Exit(2)
 	}
 
-	outputDir, err := kola.CleanOutputDir(outputDir)
+	outputDir, lockfile, err := kola.CleanOutputDir(outputDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Setup failed: %v\n", err)
 		os.Exit(1)
 	}
+	defer lockfile.Close()
 
 	cluster, err := qemu.NewCluster(&kola.QEMUOptions, outputDir)
 	if err != nil {

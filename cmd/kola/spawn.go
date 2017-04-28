@@ -75,10 +75,12 @@ func doSpawn(cmd *cobra.Command, args []string) error {
 		userdata = "#cloud-config"
 	}
 
-	outputDir, err = kola.CleanOutputDir(outputDir)
+	var lockfile *os.File
+	outputDir, lockfile, err = kola.CleanOutputDir(outputDir)
 	if err != nil {
 		return fmt.Errorf("Setup failed: %v", err)
 	}
+	defer lockfile.Close()
 
 	cluster, err := kola.NewCluster(kolaPlatform, outputDir)
 	if err != nil {
