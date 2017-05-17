@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -404,14 +405,13 @@ func getVersionFromService(kubeletService string) (pluton.Info, error) {
 		return pluton.Info{}, fmt.Errorf("could not find kubelet version from service file")
 	}
 
-	if kubeletTag == "master" {
-		// Special hack for testing master, which is a non-semver tag.
-		return pluton.Info{
-			KubeletTag:      kubeletTag,
-			Version:         kubeletTag,
-			UpstreamVersion: "v1.7.0-alpha.3", // TODO(diegs): fetch this dynamically, or extract from hyperkube.
-			ImageRepo:       kubeletImageRepo,
-		}, nil
+	// Special logic for testing upstream branches.
+	if kubeletTag == "master" || strings.HasPrefix(kubeletTag, "release") {
+		var err error
+		kubeletTag, err = fetchUpstreamBranchVersion(kubeletTag)
+		if err != nil {
+			return pluton.Info{}, err
+		}
 	}
 	upstream, err := stripSemverSuffix(kubeletTag)
 	if err != nil {
@@ -458,4 +458,26 @@ func installKubectl(m platform.Machine, upstreamVersion string) error {
 	}
 
 	return nil
+}
+
+// fetchUpstreamBranchVersion fetches the latest version for the given upstream kubernetes branch.
+func fetchUpstreamBranchVersion(branch string) (string, error) {
+	var releaseSuffix string
+	switch branch {
+	case "master":
+		releaseSuffix = ""
+	default:
+		releaseSuffix = strings.TrimPrefix(branch, "release") // e.g. "-1.6"
+	}
+	url := fmt.Sprintf("https://storage.googleapis.com/kubernetes-release/release/latest%s.txt", releaseSuffix)
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(body)), nil
 }
