@@ -17,6 +17,7 @@ package generator
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"os"
@@ -66,11 +67,28 @@ func (g *Generator) Partition(proc *Procedure) error {
 		return ErrProcedureExists
 	}
 
+	if err := checkBlockAlignment(proc); err != nil {
+		return err
+	}
+
 	g.AddCloser(proc)
 	g.manifest.PartitionOperations = proc.Operations
 	g.manifest.OldPartitionInfo = proc.OldInfo
 	g.manifest.NewPartitionInfo = proc.NewInfo
 	g.payloads = append(g.payloads, proc)
+	return nil
+}
+
+// sanity check for block alignment in partitions.
+func checkBlockAlignment(proc *Procedure) error {
+	if proc.OldInfo.GetSize()%BlockSize != 0 {
+		return fmt.Errorf("generator: old size %d not divisble by %d",
+			proc.OldInfo.Size, BlockSize)
+	}
+	if proc.NewInfo.GetSize()%BlockSize != 0 {
+		return fmt.Errorf("generator: new size %d not divisble by %d",
+			proc.NewInfo.Size, BlockSize)
+	}
 	return nil
 }
 

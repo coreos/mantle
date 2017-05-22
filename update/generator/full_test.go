@@ -149,8 +149,13 @@ func TestFullUpdateScanUnaligned(t *testing.T) {
 		source:  bytes.NewReader(testUnaligned),
 	}
 
-	if err := scanner.Scan(); err != errShortRead {
-		t.Fatalf("expected errShortRead, got %v", err)
+	if err := scanner.Scan(); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+
+	const expect = BlockSize + 1
+	if scanner.offset != expect {
+		t.Errorf("expected %d bytes, got %d", expect, scanner.offset)
 	}
 }
 

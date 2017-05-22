@@ -16,8 +16,6 @@ package generator
 
 import (
 	"crypto/sha256"
-	"errors"
-	"fmt"
 	"io"
 	"os"
 
@@ -25,10 +23,6 @@ import (
 
 	"github.com/coreos/mantle/system"
 	"github.com/coreos/mantle/update/metadata"
-)
-
-var (
-	errShortRead = errors.New("read an incomplete block")
 )
 
 // FullUpdate generates an update Procedure for the given file, embedding its
@@ -56,9 +50,6 @@ func FullUpdate(path string) (*Procedure, error) {
 	}
 	if err != nil && err != io.EOF {
 		payload.Close()
-		if err == errShortRead {
-			err = fmt.Errorf("%s: %v", path, err)
-		}
 		return nil, err
 	}
 
@@ -80,13 +71,18 @@ type fullScanner struct {
 	payload    io.Writer
 	source     io.Reader
 	offset     uint64
+	eof        error
 	operations []*metadata.InstallOperation
 }
 
 func (f *fullScanner) readChunk() ([]byte, error) {
+	if f.eof != nil {
+		return nil, f.eof
+	}
 	chunk := make([]byte, ChunkSize)
 	n, err := io.ReadFull(f.source, chunk)
-	if (err == io.EOF || err == io.ErrUnexpectedEOF) && n != 0 {
+	if err == io.ErrUnexpectedEOF {
+		f.eof = io.EOF
 		err = nil
 	}
 	return chunk[:n], err
@@ -97,12 +93,9 @@ func (f *fullScanner) Scan() error {
 	if err != nil {
 		return err
 	}
-	if len(chunk)%BlockSize != 0 {
-		return errShortRead
-	}
 
 	startBlock := uint64(f.offset) / BlockSize
-	numBlocks := uint64(len(chunk)) / BlockSize
+	numBlocks := (uint64(len(chunk)) + BlockSize - 1) / BlockSize
 	f.offset += uint64(len(chunk))
 
 	// Try bzip2 compressing the data, hopefully it will shrink!
