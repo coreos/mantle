@@ -76,6 +76,8 @@ func (g *Generator) Partition(proc *Procedure) error {
 
 // Write finalizes the payload, writing it out to the given file path.
 func (g *Generator) Write(path string) (err error) {
+	g.manifest.BlockSize = proto.Uint32(BlockSize)
+
 	if err = g.updateOffsets(); err != nil {
 		return
 	}
