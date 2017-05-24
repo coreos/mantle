@@ -18,6 +18,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"math"
 	"os"
 
 	"github.com/coreos/pkg/capnslog"
@@ -79,6 +80,9 @@ func (g *Generator) Write(path string) (err error) {
 		return
 	}
 
+	// for compatibility with old update_engine versions
+	g.addNoops()
+
 	plog.Infof("Writing payload to %s", path)
 
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
@@ -136,6 +140,61 @@ func (g *Generator) updateOffsets() error {
 	g.manifest.SignaturesOffset = proto.Uint64(uint64(offset))
 	g.manifest.SignaturesSize = proto.Uint64(uint64(sigSize))
 	return err
+}
+
+// The sparse hole was a feature of update_engine, it is not used
+// in this new code outside of the noop compatibility goo.
+const sparseHole = math.MaxUint64
+
+// Translate a normal install operation to a dummy that discards data.
+func opToNoop(op *metadata.InstallOperation) *metadata.InstallOperation {
+	blocks := (uint64(*op.DataLength) + BlockSize - 1) / BlockSize
+	sum := make([]byte, len(op.DataSha256Hash))
+	copy(sum, op.DataSha256Hash)
+
+	return &metadata.InstallOperation{
+		Type:           metadata.InstallOperation_REPLACE.Enum(),
+		DataOffset:     proto.Uint32(*op.DataOffset),
+		DataLength:     proto.Uint32(*op.DataLength),
+		DataSha256Hash: sum,
+		DstExtents: []*metadata.Extent{&metadata.Extent{
+			StartBlock: proto.Uint64(sparseHole),
+			NumBlocks:  proto.Uint64(blocks),
+		}},
+	}
+}
+
+// Fill in the dummy noop_operations list for compatibility with old
+// update_engine versions that didn't support procedures and handled
+// signature data weirdly.
+func (g *Generator) addNoops() {
+	// Translate the new procedures list to noop operations.
+	for _, proc := range g.manifest.Procedures {
+		for _, op := range proc.Operations {
+			if op.GetDataLength() == 0 {
+				continue
+			}
+
+			g.manifest.NoopOperations = append(
+				g.manifest.NoopOperations, opToNoop(op))
+		}
+	}
+
+	// Create a dummy noop operation to cover trailing signature data.
+	// Yes, the manifest inconsistently uses 32 and 64 bit values...
+	offset := uint32(*g.manifest.SignaturesOffset)
+	length := uint32(*g.manifest.SignaturesSize)
+	blocks := (*g.manifest.SignaturesSize + BlockSize - 1) / BlockSize
+	g.manifest.NoopOperations = append(g.manifest.NoopOperations,
+		&metadata.InstallOperation{
+			Type:       metadata.InstallOperation_REPLACE.Enum(),
+			DataOffset: proto.Uint32(offset),
+			DataLength: proto.Uint32(length),
+			DstExtents: []*metadata.Extent{&metadata.Extent{
+				StartBlock: proto.Uint64(sparseHole),
+				NumBlocks:  proto.Uint64(blocks),
+			}},
+		})
 }
 
 func (g *Generator) writeHeader(w io.Writer) error {
