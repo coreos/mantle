@@ -64,6 +64,8 @@ func (u *Updater) Update() error {
 			err = u.UpdatePartition(proc)
 		case metadata.InstallProcedure_KERNEL:
 			err = u.UpdateKernel(proc)
+		case metadata.InstallProcedure_PCR_POLICY:
+			err = fmt.Errorf("hanlding PCR policy data not implemented")
 		default:
 			err = fmt.Errorf("unknown procedure type %s", proc.GetType())
 		}
