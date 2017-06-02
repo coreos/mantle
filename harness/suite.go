@@ -29,10 +29,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/coreos/mantle/system"
 )
 
 const (
 	defaultOutputDir = "_harness_temp"
+	MarkerFileName   = ".harness_temp"
 )
 
 var (
@@ -188,9 +191,11 @@ func (s *Suite) Run() (err error) {
 		f.Close()
 	}
 
-	if err := s.cleanOutputDir(); err != nil {
+	lockfile, err := s.cleanOutputDir()
+	if err != nil {
 		return err
 	}
+	defer lockfile.Close()
 
 	tap, err := os.Create(s.outputPath("test.tap"))
 	if err != nil {
@@ -292,16 +297,17 @@ func (s *Suite) outputPath(path string) string {
 // If the path already exists it must be named similar to `_foo_temp`
 // or contain `.harness_temp` to indicate removal is safe; we don't
 // want users wrecking things by accident with `-outputdir /tmp`
-func (s *Suite) cleanOutputDir() error {
+// Returns *os.File with exclusive file lock acquired on it.
+func (s *Suite) cleanOutputDir() (*os.File, error) {
 	// Clean up the path to ensure errors are clear.
 	s.opts.OutputDir = filepath.Clean(s.opts.OutputDir)
 
 	if s.opts.OutputDir == "." {
-		return errors.New("harness: no output directory provided")
+		return nil, errors.New("harness: no output directory provided")
 	}
 
 	// Remove any existing data if it is safe to do so.
-	marker := filepath.Join(s.opts.OutputDir, ".harness_temp")
+	marker := filepath.Join(s.opts.OutputDir, MarkerFileName)
 	base := filepath.Base(s.opts.OutputDir)
 	safe := base[0] == '_' && strings.HasSuffix(base, "_temp")
 	if !safe {
@@ -309,24 +315,24 @@ func (s *Suite) cleanOutputDir() error {
 			safe = true
 		}
 	}
-	if safe {
+	if _, err := os.Stat(s.opts.OutputDir); safe && (err == nil || !os.IsNotExist(err)) {
+		// don't remove the directory if it's still locked
+		lockfile, err := system.Lockfile(marker)
+		if err != nil {
+			return nil, fmt.Errorf("harness: refused to remove output directory still in use: %v", err)
+		}
+		defer lockfile.Close()
 		if err := os.RemoveAll(s.opts.OutputDir); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	if err := os.Mkdir(s.opts.OutputDir, 0777); err != nil {
 		if !safe && os.IsExist(err) {
-			return fmt.Errorf("harness: refused to remove existing output directory: %s", s.opts.OutputDir)
+			return nil, fmt.Errorf("harness: refused to remove existing output directory: %s", s.opts.OutputDir)
 		}
-		return err
+		return nil, err
 	}
 
-	f, err := os.Create(marker)
-	if err != nil {
-		return err
-	}
-	f.Close()
-
-	return nil
+	return system.Lockfile(marker)
 }
