@@ -19,6 +19,7 @@ import (
 
 	"github.com/coreos/mantle/kola/cluster"
 	"github.com/coreos/mantle/kola/register"
+	"github.com/coreos/mantle/platform/conf"
 )
 
 func init() {
@@ -27,6 +28,22 @@ func init() {
 		ClusterSize:      1,
 		ExcludePlatforms: []string{"gce"},
 		Name:             "coreos.users.shells",
+	})
+	register.Register(&register.Test{
+		Run:         UserCreate,
+		ClusterSize: 1,
+		Name:        "coreos.misc.usercreate",
+		UserData: conf.ContainerLinuxConfig(`passwd:
+  users:
+    - name: user1
+      password_hash: "$1$xyz$hS2WeqUH/1Z2RyvZMLfvz/"
+      ssh_authorized_keys:
+        - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4iOch8YzSh6v8yMOLRBwWftCQqdANaHK5oClC5oGVVT5C+1Ai7FF2HGXmoprbE70pmzdb8cyLEUwuew5w0YNxIhwYj1aPQeHlU23vyguUgCEDHjn2bvLDvvyEDfEw4/7JeHETC+GNmGOlReq3pO7iQsSFOrSCMCwhMN1KCHyhJ+Ve3UKt6ZIl7sJWsEeP+62hEf0bE2M+Jg8TSFVH8V0K9wG0DrKFf+NNZwdW5VAhkFN6qP+HdEsvn/QkcdQ5APDcnpS6OPVLZlRTW4sNrAs+2muCZCVoNWVUvSXul8+sEzAs3+ODFHezJ9lKUE/KqXDBZeQ+R9lFQxkQhW6iEcJj
+      create:
+        home_dir: /home/user1
+        groups:
+          - wheel
+        shell: /bin/sh`),
 	})
 }
 
@@ -65,5 +82,24 @@ func CheckUserShells(c cluster.TestCluster) {
 
 	if len(badusers) != 0 {
 		c.Fatalf("Invalid users: %v", badusers)
+	}
+}
+
+func UserCreate(c cluster.TestCluster) {
+	m := c.Machines()[0]
+
+	shadowContents, err := m.SSH("sudo cat /etc/shadow")
+	if err != nil {
+		c.Fatalf("could not check password: %v", err)
+	}
+	if !strings.Contains(string(shadowContents), "$1$xyz$hS2WeqUH/1Z2RyvZMLfvz/") {
+		c.Fatalf("core user password not set correctly")
+	}
+	sshKeysContents, err := m.SSH("sudo cat /home/user1/.ssh/authorized_keys")
+	if err != nil {
+		c.Fatalf("could not check user1's ssh keys: %v", err)
+	}
+	if string(sshKeysContents) != "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4iOch8YzSh6v8yMOLRBwWftCQqdANaHK5oClC5oGVVT5C+1Ai7FF2HGXmoprbE70pmzdb8cyLEUwuew5w0YNxIhwYj1aPQeHlU23vyguUgCEDHjn2bvLDvvyEDfEw4/7JeHETC+GNmGOlReq3pO7iQsSFOrSCMCwhMN1KCHyhJ+Ve3UKt6ZIl7sJWsEeP+62hEf0bE2M+Jg8TSFVH8V0K9wG0DrKFf+NNZwdW5VAhkFN6qP+HdEsvn/QkcdQ5APDcnpS6OPVLZlRTW4sNrAs+2muCZCVoNWVUvSXul8+sEzAs3+ODFHezJ9lKUE/KqXDBZeQ+R9lFQxkQhW6iEcJj" {
+		c.Fatalf("user1 ssh key not set correctly: %q", sshKeysContents)
 	}
 }
