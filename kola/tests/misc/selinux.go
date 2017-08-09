@@ -39,6 +39,7 @@ func SelinuxEnforce(c cluster.TestCluster) {
 		{"sudo setenforce 1", false, ""},
 		{"getenforce", true, "Enforcing"},
 		{"systemctl --no-pager is-active system.slice", true, "active"},
+		{"sudo cp --remove-destination $(readlink -f /etc/selinux/config) /etc/selinux/config", false, ""},
 	} {
 		output, err := m.SSH(cmd.cmdline)
 		if err != nil {
@@ -48,5 +49,19 @@ func SelinuxEnforce(c cluster.TestCluster) {
 		if cmd.checkoutput && string(output) != cmd.output {
 			c.Fatalf("command %q has unexpected output: want %q got %q", cmd.cmdline, cmd.output, string(output))
 		}
+	}
+
+	err := m.Reboot()
+	if err != nil {
+		c.Fatalf("failed to reboot machine: %v", err)
+	}
+
+	output, err := m.SSH("getenforce")
+	if err != nil {
+		c.Fatalf("failed to run \"getenforce\": output: %q status: %q", output, err)
+	}
+
+	if string(output) != "Enforcing" {
+		c.Fatalf("command \"getenforce\" has unexpected output: want \"Enforcing\" got %q", string(output))
 	}
 }
