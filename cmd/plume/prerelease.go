@@ -393,7 +393,7 @@ func awsUploadToPartition(spec *channelSpec, part *awsPartitionSpec, imageName, 
 		}
 
 		plog.Printf("Creating EBS snapshot...")
-		snapshot, err = api.CreateSnapshot(imageName, s3ObjectURL, aws.EC2ImageFormatVmdk)
+		snapshot, err = api.CreateSnapshot(imageName, s3ObjectURL, spec.AWS.ImageFormat)
 		if err != nil {
 			return nil, nil, fmt.Errorf("unable to create snapshot: %v", err)
 		}
