@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/coreos/mantle/lang/maps"
+	"github.com/coreos/mantle/platform/api/aws"
 	"github.com/coreos/mantle/sdk"
 )
 
@@ -75,10 +76,11 @@ type awsPartitionSpec struct {
 }
 
 type awsSpec struct {
-	BaseName        string             // Prefix of image name
-	BaseDescription string             // Prefix of image description
-	Prefix          string             // Prefix for filenames of AMI lists
-	Image           string             // File name of image source
+	BaseName        string // Prefix of image name
+	BaseDescription string // Prefix of image description
+	Prefix          string // Prefix for filenames of AMI lists
+	Image           string // File name of image source
+	ImageFormat     aws.EC2ImageFormat
 	Partitions      []awsPartitionSpec // AWS partitions
 }
 
@@ -292,7 +294,8 @@ var (
 				BaseName:        "CoreOS",
 				BaseDescription: "CoreOS Container Linux",
 				Prefix:          "coreos_production_ami_",
-				Image:           "coreos_production_ami_vmdk_image.vmdk.bz2",
+				Image:           "coreos_production_ami_image.bin.bz2",
+				ImageFormat:     aws.EC2ImageFormatRaw,
 				Partitions:      awsPartitions,
 			},
 		},
@@ -347,7 +350,8 @@ var (
 				BaseName:        "CoreOS",
 				BaseDescription: "CoreOS Container Linux",
 				Prefix:          "coreos_production_ami_",
-				Image:           "coreos_production_ami_vmdk_image.vmdk.bz2",
+				Image:           "coreos_production_ami_image.bin.bz2",
+				ImageFormat:     aws.EC2ImageFormatRaw,
 				Partitions:      awsPartitions,
 			},
 		},
@@ -392,7 +396,8 @@ var (
 				BaseName:        "CoreOS",
 				BaseDescription: "CoreOS Container Linux",
 				Prefix:          "coreos_production_ami_",
-				Image:           "coreos_production_ami_vmdk_image.vmdk.bz2",
+				Image:           "coreos_production_ami_image.bin.bz2",
+				ImageFormat:     aws.EC2ImageFormatRaw,
 				Partitions:      awsPartitions,
 			},
 		},
