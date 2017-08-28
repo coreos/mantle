@@ -40,6 +40,7 @@ import (
 	"github.com/coreos/mantle/platform/machine/packet"
 	"github.com/coreos/mantle/platform/machine/qemu"
 	"github.com/coreos/mantle/system"
+	"github.com/coreos/mantle/util"
 )
 
 var (
@@ -111,7 +112,7 @@ func NewCluster(pltfrm string, rconf *platform.RuntimeConfig) (cluster platform.
 	return
 }
 
-func filterTests(tests map[string]*register.Test, pattern, platform string, version semver.Version) (map[string]*register.Test, error) {
+func filterTests(tests map[string]*register.Test, pattern, platform string, version semver.Version, nondestructive *bool) (map[string]*register.Test, error) {
 	r := make(map[string]*register.Test)
 
 	for name, t := range tests {
@@ -142,6 +143,10 @@ func filterTests(tests map[string]*register.Test, pattern, platform string, vers
 				allowed = false
 			}
 		}
+		if nondestructive != nil && *nondestructive != t.NonDestructive {
+			allowed = false
+		}
+
 		if !allowed {
 			continue
 		}
@@ -155,6 +160,7 @@ func filterTests(tests map[string]*register.Test, pattern, platform string, vers
 				allowed = false
 			}
 		}
+
 		if !allowed {
 			continue
 		}
@@ -196,18 +202,28 @@ func RunTests(pattern, pltfrm, outputDir string) error {
 	// 1) none of the selected tests care about the version
 	// 2) glob is an exact match which means minVersion will be ignored
 	//    either way
-	tests, err := filterTests(register.Tests, pattern, pltfrm, semver.Version{})
+	destructiveTests, err := filterTests(register.Tests, pattern, pltfrm, semver.Version{}, util.BoolToPtr(false))
+	if err != nil {
+		plog.Fatal(err)
+	}
+
+	nonDestructiveTests, err := filterTests(register.Tests, pattern, pltfrm, semver.Version{}, util.BoolToPtr(true))
 	if err != nil {
 		plog.Fatal(err)
 	}
 
 	skipGetVersion := true
-	for name, t := range tests {
-		if name != pattern && (t.MinVersion != semver.Version{} || t.EndVersion != semver.Version{}) {
-			skipGetVersion = false
-			break
+	checkTests := func(tests map[string]*register.Test) {
+		for name, t := range tests {
+			if name != pattern && (t.MinVersion != semver.Version{} || t.EndVersion != semver.Version{}) {
+				skipGetVersion = false
+				break
+			}
 		}
 	}
+
+	checkTests(destructiveTests)
+	checkTests(nonDestructiveTests)
 
 	if !skipGetVersion {
 		version, err := getClusterSemver(pltfrm, outputDir)
@@ -216,7 +232,12 @@ func RunTests(pattern, pltfrm, outputDir string) error {
 		}
 
 		// one more filter pass now that we know real version
-		tests, err = filterTests(tests, pattern, pltfrm, *version)
+		destructiveTests, err = filterTests(destructiveTests, pattern, pltfrm, *version, util.BoolToPtr(false))
+		if err != nil {
+			plog.Fatal(err)
+		}
+
+		nonDestructiveTests, err = filterTests(nonDestructiveTests, pattern, pltfrm, *version, util.BoolToPtr(true))
 		if err != nil {
 			plog.Fatal(err)
 		}
@@ -228,12 +249,71 @@ func RunTests(pattern, pltfrm, outputDir string) error {
 		Verbose:   true,
 	}
 	var htests harness.Tests
-	for _, test := range tests {
+	for _, test := range destructiveTests {
 		test := test // for the closure
 		run := func(h *harness.H) {
-			runTest(h, test, pltfrm)
+			runTest(h, []*register.Test{test}, pltfrm, false)
 		}
 		htests.Add(test.Name, run)
+	}
+
+	groups := make(map[string][]*register.Test)
+
+	// ensure that each group only has tests that have similar cluster
+	// and machine requirements
+	addToGroup := func(t *register.Test) {
+		for name, tl := range groups {
+			if len(tl) < 1 {
+				continue
+			}
+			m := tl[0]
+
+			flags := []register.Flag{
+				register.NoSSHKeyInUserData,
+				register.NoSSHKeyInMetadata,
+				register.NoEnableSelinux,
+			}
+
+			differentFlags := false
+			for _, flag := range flags {
+				if t.HasFlag(flag) != m.HasFlag(flag) {
+					differentFlags = true
+					break
+				}
+			}
+			if differentFlags {
+				continue
+			}
+
+			if t.ClusterSize != m.ClusterSize {
+				continue
+			}
+
+			if t.UserData != m.UserData {
+				continue
+			}
+
+			groups[name] = append(groups[name], t)
+			return
+		}
+		name := fmt.Sprintf("ndt%d", len(groups)+1)
+		groups[name] = []*register.Test{t}
+	}
+
+	for _, test := range nonDestructiveTests {
+		addToGroup(test)
+	}
+
+	for name, testList := range groups {
+		// redeclare the variables inside of this scope
+		// so that the function receives the correct data
+		name := name
+		testList := testList
+
+		run := func(h *harness.H) {
+			runTest(h, testList, pltfrm, true)
+		}
+		htests.Add(name, run)
 	}
 
 	suite := harness.NewSuite(opts, htests)
@@ -295,11 +375,18 @@ func getClusterSemver(pltfrm, outputDir string) (*semver.Version, error) {
 	return version, nil
 }
 
-// runTest is a harness for running a single test.
+// runTest is a harness for running a single test group.
 // outputDir is where various test logs and data will be written for
 // analysis after the test run. It should already exist.
-func runTest(h *harness.H, t *register.Test, pltfrm string) {
+func runTest(h *harness.H, g []*register.Test, pltfrm string, runAsSubtests bool) {
 	h.Parallel()
+
+	if len(g) < 1 {
+		h.Fatal("runTest called with no tests")
+	}
+
+	// select first test from group to use for settings
+	m := g[0]
 
 	// don't go too fast, in case we're talking to a rate limiting api like AWS EC2.
 	// FIXME(marineam): API requests must do their own
@@ -310,9 +397,9 @@ func runTest(h *harness.H, t *register.Test, pltfrm string) {
 
 	rconf := &platform.RuntimeConfig{
 		OutputDir:          h.OutputDir(),
-		NoSSHKeyInUserData: t.HasFlag(register.NoSSHKeyInUserData),
-		NoSSHKeyInMetadata: t.HasFlag(register.NoSSHKeyInMetadata),
-		NoEnableSelinux:    t.HasFlag(register.NoEnableSelinux),
+		NoSSHKeyInUserData: m.HasFlag(register.NoSSHKeyInUserData),
+		NoSSHKeyInMetadata: m.HasFlag(register.NoSSHKeyInMetadata),
+		NoEnableSelinux:    m.HasFlag(register.NoEnableSelinux),
 	}
 	c, err := NewCluster(pltfrm, rconf)
 	if err != nil {
@@ -322,40 +409,21 @@ func runTest(h *harness.H, t *register.Test, pltfrm string) {
 		if err := c.Destroy(); err != nil {
 			plog.Errorf("cluster.Destroy(): %v", err)
 		}
-		checkConsole(h, t, c)
 	}()
 
-	if t.ClusterSize > 0 {
-		url, err := c.GetDiscoveryURL(t.ClusterSize)
+	if m.ClusterSize > 0 {
+		url, err := c.GetDiscoveryURL(m.ClusterSize)
 		if err != nil {
 			h.Fatalf("Failed to create discovery endpoint: %v", err)
 		}
 
-		userdata := t.UserData
+		userdata := m.UserData
 		if userdata != nil {
 			userdata = userdata.Subst("$discovery", url)
 		}
-		if _, err := platform.NewMachines(c, userdata, t.ClusterSize); err != nil {
+		if _, err := platform.NewMachines(c, userdata, m.ClusterSize); err != nil {
 			h.Fatalf("Cluster failed starting machines: %v", err)
 		}
-	}
-
-	// pass along all registered native functions
-	var names []string
-	for k := range t.NativeFuncs {
-		names = append(names, k)
-	}
-
-	// Cluster -> TestCluster
-	tcluster := cluster.TestCluster{
-		H:           h,
-		Cluster:     c,
-		NativeFuncs: names,
-	}
-
-	// drop kolet binary on machines
-	if t.NativeFuncs != nil {
-		scpKolet(tcluster, architecture(pltfrm))
 	}
 
 	defer func() {
@@ -364,8 +432,68 @@ func runTest(h *harness.H, t *register.Test, pltfrm string) {
 		time.Sleep(2 * time.Second)
 	}()
 
-	// run test
-	t.Run(tcluster)
+	// run each test
+	if runAsSubtests {
+		for _, test := range g {
+			h.Run(test.Name, func(h *harness.H) {
+				// check console for each test
+				defer checkConsole(h, test, c)
+
+				// pass along all registered native functions
+				var names []string
+				for k := range test.NativeFuncs {
+					names = append(names, k)
+				}
+
+				// Cluster -> TestCluster
+				// This is done for each test so that they
+				// have the correct harness.H object to
+				// properly report status up the channels.
+				tcluster := cluster.TestCluster{
+					H:           h,
+					Cluster:     c,
+					NativeFuncs: names,
+				}
+
+				// drop kolet binary on machines
+				if len(names) > 0 {
+					scpKolet(tcluster, architecture(pltfrm))
+				}
+
+				// Create the symlink from the test to the
+				// cluster output directory.
+				_, err := h.LinkOutputDir()
+				if err != nil {
+					h.Log(err)
+					h.FailNow()
+				}
+
+				test.Run(tcluster)
+			}, util.BoolToPtr(true))
+		}
+	} else {
+		defer checkConsole(h, m, c)
+
+		// pass along all registered native functions
+		var names []string
+		for k := range m.NativeFuncs {
+			names = append(names, k)
+		}
+
+		// Cluster -> TestCluster
+		tcluster := cluster.TestCluster{
+			H:           h,
+			Cluster:     c,
+			NativeFuncs: names,
+		}
+
+		// drop kolet binary on machines
+		if len(names) > 0 {
+			scpKolet(tcluster, architecture(pltfrm))
+		}
+
+		m.Run(tcluster)
+	}
 }
 
 // architecture returns the machine architecture of the given platform.

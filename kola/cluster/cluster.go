@@ -22,6 +22,7 @@ import (
 
 	"github.com/coreos/mantle/harness"
 	"github.com/coreos/mantle/platform"
+	"github.com/coreos/mantle/util"
 )
 
 // TestCluster embedds a Cluster to provide platform independant helper
@@ -36,12 +37,16 @@ type TestCluster struct {
 func (t *TestCluster) Run(name string, f func(c TestCluster)) bool {
 	return t.H.Run(name, func(h *harness.H) {
 		f(TestCluster{H: h, Cluster: t.Cluster})
-	})
+	}, util.BoolToPtr(false))
 }
 
 // RunNative runs a registered NativeFunc on a remote machine
 func (t *TestCluster) RunNative(funcName string, m platform.Machine) bool {
-	command := fmt.Sprintf("./kolet run %q %q", t.Name(), funcName)
+	// Use a filepath.Split to seperate out the coreos.XXXX from the
+	// non-destructive test group if present.
+	_, name := filepath.Split(t.Name())
+
+	command := fmt.Sprintf("./kolet run %q %q", name, funcName)
 	return t.Run(funcName, func(c TestCluster) {
 		client, err := m.SSHClient()
 		if err != nil {

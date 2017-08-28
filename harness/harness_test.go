@@ -28,6 +28,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/coreos/mantle/util"
 )
 
 func TestMain(m *testing.M) {
@@ -95,19 +97,19 @@ func TestSubTests(t *testing.T) {
 				t.Run("par", func(t *H) {
 					t.Parallel()
 					ranPar = true
-				})
+				}, util.BoolToPtr(false))
 				t.Run("seq", func(t *H) {
 					ranSeq = true
-				})
+				}, util.BoolToPtr(false))
 				t.FailNow()
 				t.Run("seq", func(t *H) {
 					realTest.Error("test must be skipped")
-				})
+				}, util.BoolToPtr(false))
 				t.Run("par", func(t *H) {
 					t.Parallel()
 					realTest.Error("test must be skipped.")
-				})
-			})
+				}, util.BoolToPtr(false))
+			}, util.BoolToPtr(false))
 			if !ranPar {
 				realTest.Error("parallel test was not run")
 			}
@@ -130,8 +132,8 @@ func TestSubTests(t *testing.T) {
 				t.Run("par", func(t *H) {
 					t.Parallel()
 					t.Fail()
-				})
-			})
+				}, util.BoolToPtr(false))
+			}, util.BoolToPtr(false))
 		},
 	}, {
 		desc:   "skipping without message, chatty",
@@ -152,8 +154,8 @@ func TestSubTests(t *testing.T) {
         --- PASS: chatty with recursion/#00/#00 (N.NNs)`,
 		f: func(t *H) {
 			t.Run("", func(t *H) {
-				t.Run("", func(t *H) {})
-			})
+				t.Run("", func(t *H) {}, util.BoolToPtr(false))
+			}, util.BoolToPtr(false))
 		},
 	}, {
 		desc: "skipping without message, not chatty",
@@ -179,9 +181,9 @@ func TestSubTests(t *testing.T) {
 					t.Run("par", func(t *H) {
 						t.Parallel()
 						atomic.AddUint32(&count, 1)
-					})
+					}, util.BoolToPtr(false))
 				}
-			})
+			}, util.BoolToPtr(false))
 			if count != 4 {
 				t.Errorf("count was %d; want 4", count)
 			}
@@ -199,10 +201,10 @@ func TestSubTests(t *testing.T) {
 					// Sequential: ensure running count is decremented.
 					t.Run("c", func(t *H) {
 						t.Parallel()
-					})
+					}, util.BoolToPtr(false))
 
-				})
-			})
+				}, util.BoolToPtr(false))
+			}, util.BoolToPtr(false))
 		},
 	}, {
 		desc: "alternate sequential and parallel 2",
@@ -222,12 +224,12 @@ func TestSubTests(t *testing.T) {
 								t.Run("c", func(t *H) {
 									t.Parallel()
 									time.Sleep(time.Nanosecond)
-								})
+								}, util.BoolToPtr(false))
 							}
 
-						})
+						}, util.BoolToPtr(false))
 					}
-				})
+				}, util.BoolToPtr(false))
 			}
 		},
 	}, {
@@ -250,17 +252,17 @@ func TestSubTests(t *testing.T) {
 									t.Run("c", func(t *H) {
 										t.Parallel()
 										time.Sleep(time.Nanosecond)
-										t.Run("d1", func(t *H) {})
-										t.Run("d2", func(t *H) {})
-										t.Run("d3", func(t *H) {})
-										t.Run("d4", func(t *H) {})
-									})
+										t.Run("d1", func(t *H) {}, util.BoolToPtr(false))
+										t.Run("d2", func(t *H) {}, util.BoolToPtr(false))
+										t.Run("d3", func(t *H) {}, util.BoolToPtr(false))
+										t.Run("d4", func(t *H) {}, util.BoolToPtr(false))
+									}, util.BoolToPtr(false))
 								}
-							})
+							}, util.BoolToPtr(false))
 						}
-					})
+					}, util.BoolToPtr(false))
 				}
-			})
+			}, util.BoolToPtr(false))
 		},
 	}, {
 		desc:   "skip output",
@@ -285,10 +287,41 @@ func TestSubTests(t *testing.T) {
 					}()
 					t.Errorf("failed after success")
 				}()
-			})
+			}, util.BoolToPtr(false))
 			ch <- true
 			<-ch
 		},
+	}, {
+		desc:   "subtests don't panic parent test",
+		chatty: true,
+		err:    SuiteFailed,
+		f: func(t *H) {
+			t.Run("outer", func(t *H) {
+				for i := 1; i < 4; i++ {
+					i := i
+					t.Run(fmt.Sprintf("%d", i), func(t *H) {
+						if i == 2 {
+							t.Skip("skip")
+						} else if i == 3 {
+							t.Fatal("fatal")
+						}
+					}, util.BoolToPtr(true))
+				}
+			}, util.BoolToPtr(true))
+		},
+		output: `
+=== RUN   subtests don't panic parent test
+=== RUN   subtests don't panic parent test/outer
+=== RUN   subtests don't panic parent test/outer/1
+=== RUN   subtests don't panic parent test/outer/2
+=== RUN   subtests don't panic parent test/outer/3
+--- FAIL: subtests don't panic parent test (N.NNs)
+    --- FAIL: subtests don't panic parent test/outer (N.NNs)
+        --- PASS: subtests don't panic parent test/outer/1 (N.NNs)
+        --- SKIP: subtests don't panic parent test/outer/2 (N.NNs)
+                harness_test.go:NNN: skip
+        --- FAIL: subtests don't panic parent test/outer/3 (N.NNs)
+                harness_test.go:NNN: fatal`,
 	}}
 	for _, tc := range testCases {
 		suite := NewSuite(Options{

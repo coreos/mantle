@@ -56,6 +56,11 @@ type Test struct {
 	// greater than or equal to EndVersion. This will be ignored if
 	// the name fully matches without globbing.
 	EndVersion semver.Version
+
+	// NonDestructive marks that a test regardless can be ran on the
+	// same CoreOS machine as other tests, and regardless of outcome
+	// will leave the machine in the same state it was received in.
+	NonDestructive bool
 }
 
 // Registered tests live here. Mapping of names to tests.

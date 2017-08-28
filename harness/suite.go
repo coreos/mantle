@@ -29,6 +29,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/coreos/mantle/util"
 )
 
 const (
@@ -269,13 +271,13 @@ func (s *Suite) runTests(out, tap io.Writer) error {
 	}
 	tRunner(t, func(t *H) {
 		for name, test := range s.tests {
-			t.Run(name, test)
+			t.Run(name, test, util.BoolToPtr(false))
 		}
 		// Run catching the signal rather than the tRunner as a separate
 		// goroutine to avoid adding a goroutine during the sequential
 		// phase as this pollutes the stacktrace output when aborting.
 		go func() { <-t.signal }()
-	})
+	}, util.BoolToPtr(false))
 	if !t.ran {
 		return SuiteEmpty
 	}

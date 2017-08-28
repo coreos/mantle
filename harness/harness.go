@@ -298,6 +298,23 @@ func (h *H) mkOutputDir() (dir string, err error) {
 	return
 }
 
+// Used by Non-Destructive Tests to create a symlink from the test name
+// to the cluster output directory. Only test frameworks should ever
+// use this.
+func (h *H) LinkOutputDir() (dir string, err error) {
+	outer, inner := filepath.Split(h.name)
+	dir = h.suite.outputPath(inner)
+	parent, err := filepath.Abs(h.suite.outputPath(outer))
+	if err != nil {
+		err = fmt.Errorf("Failed to get output path: %v", err)
+		return
+	}
+	if err = os.Symlink(parent, dir); err != nil {
+		err = fmt.Errorf("Failed to link output dir: %v", err)
+	}
+	return
+}
+
 // OutputDir returns the path to a directory for storing data used by
 // the current test. Only test frameworks should care about this.
 // Individual tests should normally use H.TempDir or H.TempFile
@@ -364,7 +381,7 @@ func (t *H) Parallel() {
 	t.start = time.Now()
 }
 
-func tRunner(t *H, fn func(t *H)) {
+func tRunner(t *H, fn func(t *H), isSubTest *bool) {
 	t.ctx, t.cancel = context.WithCancel(t.parentContext())
 	defer t.cancel()
 
@@ -381,8 +398,13 @@ func tRunner(t *H, fn func(t *H)) {
 		}
 		if err != nil {
 			t.Fail()
-			t.report()
-			panic(err)
+			// only report & panic if this is not a
+			// non-destructive test, otherwise all tests in
+			// the group will not be ran.
+			if isSubTest == nil || !*isSubTest {
+				t.report()
+				panic(err)
+			}
 		}
 
 		if len(t.sub) > 0 {
@@ -422,7 +444,7 @@ func tRunner(t *H, fn func(t *H)) {
 
 // Run runs f as a subtest of t called name. It reports whether f succeeded.
 // Run will block until all its parallel subtests have completed.
-func (t *H) Run(name string, f func(t *H)) bool {
+func (t *H) Run(name string, f func(t *H), isSubTest *bool) bool {
 	t.hasSub = true
 	testName, ok := t.suite.match.fullName(t, name)
 	if !ok {
@@ -453,7 +475,7 @@ func (t *H) Run(name string, f func(t *H)) bool {
 	// count correct. This ensures that a sequence of sequential tests runs
 	// without being preempted, even when their parent is a parallel test. This
 	// may especially reduce surprises if *parallel == 1.
-	go tRunner(t, f)
+	go tRunner(t, f, isSubTest)
 	<-t.signal
 	return !t.failed
 }
