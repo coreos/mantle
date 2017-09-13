@@ -30,7 +30,6 @@ var (
 	raidRootUserData = conf.ContainerLinuxConfig(`storage:
   disks:
     - device: /dev/vdb
-      wipe_table: true
       partitions:
        - label: root1
          number: 1
@@ -64,6 +63,74 @@ var (
             - "-L"
             - "wasteland"
           force: true`)
+	nestedRaidRootUserData = conf.ContainerLinuxConfig(`storage:
+  disks:
+    - device: /dev/vdb
+      partitions:
+       - label: root11
+         number: 1
+         size: 256MiB
+         type_guid: be9067b9-ea49-4f15-b4f6-f36f8c9e1818
+       - label: root12
+         number: 2
+         size: 256MiB
+         type_guid: be9067b9-ea49-4f15-b4f6-f36f8c9e1818
+       - label: root21
+         number: 3
+         size: 256MiB
+         type_guid: be9067b9-ea49-4f15-b4f6-f36f8c9e1818
+       - label: root22
+         number: 4
+         size: 256MiB
+         type_guid: be9067b9-ea49-4f15-b4f6-f36f8c9e1818
+    - device: /dev/md/inner1
+      partitions:
+       - label: inner_part1
+         number: 1
+         type_guid: be9067b9-ea49-4f15-b4f6-f36f8c9e1818
+    - device: /dev/md/inner2
+      partitions:
+       - label: inner_part2
+         number: 1
+         type_guid: be9067b9-ea49-4f15-b4f6-f36f8c9e1818
+    - device: /dev/md/outer
+      partitions:
+       - label: ROOT
+         number: 1
+  raid:
+    - name: "inner1"
+      level: "raid1"
+      devices:
+        - "/dev/vdb1"
+        - "/dev/vdb2"
+    - name: "inner2"
+      level: "raid1"
+      devices:
+        - "/dev/vdb3"
+        - "/dev/vdb4"
+    - name: "outer"
+      level: "raid1"
+      devices:
+        - "/dev/md/inner1p1"
+        - "/dev/md/inner2p1"
+  filesystems:
+    - name: "ROOT"
+      mount:
+        device: "/dev/md/outer1"
+        format: "ext4"
+        create:
+          options:
+            - "-L"
+            - "ROOT"
+    - name: "NOT_ROOT"
+      mount:
+        device: "/dev/vda9"
+        format: "ext4"
+        create:
+          options:
+            - "-L"
+            - "wasteland"
+          force: true`)
 )
 
 func init() {
@@ -78,6 +145,18 @@ func init() {
 		Platforms:   []string{"qemu"},
 		MinVersion:  semver.Version{Major: 1520},
 		Name:        "coreos.disk.raid.root",
+	})
+	register.Register(&register.Test{
+		// This test needs additional disks which is only supported on qemu since Ignition
+		// does not support deleting partitions without wiping the partition table and the
+		// disk doesn't have room for new partitions.
+		// TODO(ajeddeloh): change this to delete partition 9 and replace it with 9 and 10
+		// once Ignition supports it.
+		Run:         NestedRootOnRaid,
+		ClusterSize: 0,
+		Platforms:   []string{"qemu"},
+		MinVersion:  semver.Version{Major: 1535},
+		Name:        "coreos.disk.raid.nestedroot",
 	})
 	register.Register(&register.Test{
 		Run:         DataOnRaid,
@@ -125,7 +204,7 @@ func RootOnRaid(c cluster.TestCluster) {
 		c.Fatal(err)
 	}
 
-	checkIfMountpointIsRaid(c, m, "/")
+	checkIfMountpointIsType(c, m, "/", "raid1")
 
 	// reboot it to make sure it comes up again
 	err = m.Reboot()
@@ -133,13 +212,35 @@ func RootOnRaid(c cluster.TestCluster) {
 		c.Fatalf("could not reboot machine: %v", err)
 	}
 
-	checkIfMountpointIsRaid(c, m, "/")
+	checkIfMountpointIsType(c, m, "/", "raid1")
+}
+
+func NestedRootOnRaid(c cluster.TestCluster) {
+	options := qemu.MachineOptions{
+		AdditionalDisks: []qemu.Disk{
+			{Size: "1100M"},
+		},
+	}
+	m, err := c.Cluster.(*qemu.Cluster).NewMachineWithOptions(nestedRaidRootUserData, options)
+	if err != nil {
+		c.Fatal(err)
+	}
+
+	checkIfMountpointIsType(c, m, "/", "md")
+
+	// reboot it to make sure it comes up again
+	err = m.Reboot()
+	if err != nil {
+		c.Fatalf("could not reboot machine: %v", err)
+	}
+
+	checkIfMountpointIsType(c, m, "/", "md")
 }
 
 func DataOnRaid(c cluster.TestCluster) {
 	m := c.Machines()[0]
 
-	checkIfMountpointIsRaid(c, m, "/var/lib/data")
+	checkIfMountpointIsType(c, m, "/var/lib/data", "raid1")
 
 	// reboot it to make sure it comes up again
 	err := m.Reboot()
@@ -147,7 +248,7 @@ func DataOnRaid(c cluster.TestCluster) {
 		c.Fatalf("could not reboot machine: %v", err)
 	}
 
-	checkIfMountpointIsRaid(c, m, "/var/lib/data")
+	checkIfMountpointIsType(c, m, "/var/lib/data", "raid1")
 }
 
 type lsblkOutput struct {
@@ -163,7 +264,7 @@ type blockdevice struct {
 
 // checkIfMountpointIsRaid will check if a given machine has a device of type
 // raid1 mounted at the given mountpoint. If it does not, the test is failed.
-func checkIfMountpointIsRaid(c cluster.TestCluster, m platform.Machine, mountpoint string) {
+func checkIfMountpointIsType(c cluster.TestCluster, m platform.Machine, mountpoint, mount_type string) {
 	output, err := m.SSH("lsblk --json")
 	if err != nil {
 		c.Fatalf("couldn't list block devices: %v", err)
@@ -175,7 +276,7 @@ func checkIfMountpointIsRaid(c cluster.TestCluster, m platform.Machine, mountpoi
 		c.Fatalf("couldn't unmarshal lsblk output: %v", err)
 	}
 
-	foundRoot := checkIfMountpointIsRaidWalker(c, l.Blockdevices, mountpoint)
+	foundRoot := checkIfMountpointIsTypeWalker(c, l.Blockdevices, mountpoint, mount_type)
 	if !foundRoot {
 		c.Fatalf("didn't find root mountpoint in lsblk output")
 	}
@@ -185,15 +286,15 @@ func checkIfMountpointIsRaid(c cluster.TestCluster, m platform.Machine, mountpoi
 // children, looking for a device mounted at / with type raid1. true is returned
 // if such a device is found. The test is failed if a device of a different type
 // is found to be mounted at /.
-func checkIfMountpointIsRaidWalker(c cluster.TestCluster, bs []blockdevice, mountpoint string) bool {
+func checkIfMountpointIsTypeWalker(c cluster.TestCluster, bs []blockdevice, mountpoint, mount_type string) bool {
 	for _, b := range bs {
 		if b.Mountpoint != nil && *b.Mountpoint == mountpoint {
-			if b.Type != "raid1" {
+			if b.Type != mount_type {
 				c.Fatalf("device %q is mounted at %q with type %q (was expecting raid1)", b.Name, mountpoint, b.Type)
 			}
 			return true
 		}
-		foundRoot := checkIfMountpointIsRaidWalker(c, b.Children, mountpoint)
+		foundRoot := checkIfMountpointIsTypeWalker(c, b.Children, mountpoint, mount_type)
 		if foundRoot {
 			return true
 		}
