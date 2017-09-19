@@ -56,15 +56,15 @@ G6aFKaqQfOXKCyWoUiVknQJAXrlgySFci/2ueKlIE1QqIiLSZ8V8OlpFLRnb1pzI
 	signer := NewSigner(priv, exampleKeyID)
 
 	t.Run("GET Call", func(t *testing.T) {
-		getCall(t, signer)
+		signerGetCall(t, signer)
 	})
 
 	t.Run("POST Call", func(t *testing.T) {
-		postCall(t, signer)
+		signerPostCall(t, signer)
 	})
 }
 
-func getCall(t *testing.T, signer *Signer) {
+func signerGetCall(t *testing.T, signer *Signer) {
 	uri := "https://iaas.us-phoenix-1.oraclecloud.com/20160918/instances?availabilityDomain=Pjwf%3A%20PHX-AD-1&compartmentId=ocid1.compartment.oc1..aaaaaaaam3we6vgnherjq5q2idnccdflvjsnog7mlr6rtdb25gilchfeyjxa&displayName=TeamXInstances&volumeId=ocid1.volume.oc1.phx.abyhqljrgvttnlx73nmrwfaux7kcvzfs3s66izvxf2h4lgvyndsdsnoiwr5q"
 
 	req, err := http.NewRequest("GET", uri, nil)
@@ -99,7 +99,7 @@ func getCall(t *testing.T, signer *Signer) {
 	}
 }
 
-func postCall(t *testing.T, signer *Signer) {
+func signerPostCall(t *testing.T, signer *Signer) {
 	uri := "https://iaas.us-phoenix-1.oraclecloud.com/20160918/volumeAttachments"
 
 	req, err := http.NewRequest("POST", uri, nil)
@@ -149,7 +149,7 @@ func ParseAuthorization(t *testing.T, data string) map[string]string {
 	patterns := map[string]string{
 		"keyId":     "(keyId=\"[a-zA-Z0-9\\./:]+\")",
 		"algorithm": "(algorithm=\"[a-z0-9\\-]+\")",
-		"signature": "(signature=\"[a-zA-Z0-9/=]+\")",
+		"signature": "(signature=\"[a-zA-Z0-9/=\\+]+\")",
 		"version":   "(version=\"[0-9]+\")",
 		"headers":   "(headers=\"[a-z0-9\\(\\) \\-]+\")",
 	}
