@@ -1,5 +1,5 @@
-hash: 963a35f11f8b2de0b5021d586f0b82d09773dce07271ec0de93dfa3aedd9625d
-updated: 2017-08-25T17:03:34.112032005-07:00
+hash: 793250eb0d060e90468e85c95a7fb319d2b728abc9627b9480b63822980174c2
+updated: 2017-09-25T21:43:48.167151158-07:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -242,6 +242,10 @@ imports:
   version: 1c44ec8d3f1552cac48999f9306da23c4d8a288b
 - name: github.com/spf13/pflag
   version: 7f60f83a2c81bc3c3c0d5297f61ddfa68da9d3b7
+- name: github.com/stretchr/testify
+  version: 890a5c3458b43e6104ff5da8dfa139d013d77544
+  subpackages:
+  - assert
 - name: github.com/ugorji/go
   version: f1f1a805ed361a0e078bb537e4ea78cd37dcf065
   subpackages:
@@ -355,4 +359,13 @@ imports:
   - naming
   - peer
   - transport
-testImports: []
+testImports:
+- name: github.com/davecgh/go-spew
+  version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9
+  repo: https://github.com/davecgh/go-spew
+  subpackages:
+  - spew
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
