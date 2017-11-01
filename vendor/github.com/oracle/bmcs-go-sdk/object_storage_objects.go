@@ -229,3 +229,27 @@ func (c *Client) PutObject(
 	object.Body = content
 	return
 }
+
+func (c *Client) RenameObject(namespace Namespace, bucketName, sourceName, destName string) (e error) {
+	required := struct {
+		SourceName string `header:"-" json:"sourceName" url:"-"`
+		NewName    string `header:"-" json:"newName" url:"-"`
+	}{
+		SourceName: sourceName,
+		NewName:    destName,
+	}
+
+	details := &requestDetails{
+		ids: urlParts{
+			namespace,
+			resourceBuckets,
+			bucketName,
+			"actions",
+			"renameObject",
+		},
+		required: required,
+	}
+
+	_, e = c.objectStorageApi.request(http.MethodPost, details)
+	return
+}
