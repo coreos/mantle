@@ -82,6 +82,32 @@ type awsSpec struct {
 	Partitions      []awsPartitionSpec // AWS partitions
 }
 
+type ociBucketSpec struct {
+	Name string
+
+	// If this prefix is anything other than empty string the bucket
+	// will be considered a release bucket and a rename will occur
+	// during the plume release stage which will remove the Prefix
+	// string from the front of the image name.
+	Prefix string
+}
+
+type ociRegionSpec struct {
+	Name    string
+	Buckets []ociBucketSpec
+}
+
+type ociAccountSpec struct {
+	ProfileName string
+	Regions     []ociRegionSpec
+}
+
+type ociSpec struct {
+	BaseName string
+	Image    string
+	Accounts []ociAccountSpec
+}
+
 type channelSpec struct {
 	BaseURL      string // Copy from $BaseURL/$Board/$Version
 	Boards       []string
@@ -89,6 +115,7 @@ type channelSpec struct {
 	GCE          gceSpec
 	Azure        azureSpec
 	AWS          awsSpec
+	OCI          ociSpec
 }
 
 var (
@@ -98,6 +125,7 @@ var (
 	gceBoards         = []string{"amd64-usr"}
 	azureBoards       = []string{"amd64-usr"}
 	awsBoards         = []string{"amd64-usr"}
+	ociBoards         = []string{"amd64-usr"}
 	azureEnvironments = []azureEnvironmentSpec{
 		azureEnvironmentSpec{
 			SubscriptionName:     "BizSpark",
@@ -206,6 +234,26 @@ var (
 					},
 				},
 			},
+			OCI: ociSpec{
+				BaseName: "Container-Linux",
+				Image:    "coreos_production_oracle_oci_qcow_image.img.bz2",
+				Accounts: []ociAccountSpec{
+					ociAccountSpec{
+						ProfileName: "developer",
+						Regions: []ociRegionSpec{
+							ociRegionSpec{
+								Name: "us-phoenix-1",
+								Buckets: []ociBucketSpec{
+									ociBucketSpec{
+										Name:   "plume-user",
+										Prefix: "",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 		"developer": channelSpec{
 			BaseURL: "gs://builds.developer.core-os.net/boards",
@@ -234,6 +282,26 @@ var (
 						},
 						Regions: []string{
 							"us-west-2",
+						},
+					},
+				},
+			},
+			OCI: ociSpec{
+				BaseName: "Container-Linux",
+				Image:    "coreos_production_oracle_oci_qcow_image.img.bz2",
+				Accounts: []ociAccountSpec{
+					ociAccountSpec{
+						ProfileName: "developer",
+						Regions: []ociRegionSpec{
+							ociRegionSpec{
+								Name: "us-phoenix-1",
+								Buckets: []ociBucketSpec{
+									ociBucketSpec{
+										Name:   "plume-developer",
+										Prefix: "",
+									},
+								},
+							},
 						},
 					},
 				},
@@ -295,6 +363,40 @@ var (
 				Image:           "coreos_production_ami_vmdk_image.vmdk.bz2",
 				Partitions:      awsPartitions,
 			},
+			OCI: ociSpec{
+				BaseName: "Container-Linux",
+				Image:    "coreos_production_oracle_oci_qcow_image.img.bz2",
+				Accounts: []ociAccountSpec{
+					ociAccountSpec{
+						ProfileName: "developer",
+						Regions: []ociRegionSpec{
+							ociRegionSpec{
+								Name: "us-phoenix-1",
+								Buckets: []ociBucketSpec{
+									ociBucketSpec{
+										Name:   "plume-prerelease",
+										Prefix: "",
+									},
+								},
+							},
+						},
+					},
+					ociAccountSpec{
+						ProfileName: "release",
+						Regions: []ociRegionSpec{
+							ociRegionSpec{
+								Name: "us-phoenix-1",
+								Buckets: []ociBucketSpec{
+									ociBucketSpec{
+										Name:   "CoreOS_Drop",
+										Prefix: "prerelease/",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 		"beta": channelSpec{
 			BaseURL: "gs://builds.release.core-os.net/beta/boards",
@@ -350,6 +452,40 @@ var (
 				Image:           "coreos_production_ami_vmdk_image.vmdk.bz2",
 				Partitions:      awsPartitions,
 			},
+			OCI: ociSpec{
+				BaseName: "Container-Linux",
+				Image:    "coreos_production_oracle_oci_qcow_image.img.bz2",
+				Accounts: []ociAccountSpec{
+					ociAccountSpec{
+						ProfileName: "developer",
+						Regions: []ociRegionSpec{
+							ociRegionSpec{
+								Name: "us-phoenix-1",
+								Buckets: []ociBucketSpec{
+									ociBucketSpec{
+										Name:   "plume-prerelease",
+										Prefix: "",
+									},
+								},
+							},
+						},
+					},
+					ociAccountSpec{
+						ProfileName: "release",
+						Regions: []ociRegionSpec{
+							ociRegionSpec{
+								Name: "us-phoenix-1",
+								Buckets: []ociBucketSpec{
+									ociBucketSpec{
+										Name:   "CoreOS_Drop",
+										Prefix: "prerelease/",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 		"stable": channelSpec{
 			BaseURL: "gs://builds.release.core-os.net/stable/boards",
@@ -394,6 +530,40 @@ var (
 				Prefix:          "coreos_production_ami_",
 				Image:           "coreos_production_ami_vmdk_image.vmdk.bz2",
 				Partitions:      awsPartitions,
+			},
+			OCI: ociSpec{
+				BaseName: "Container-Linux",
+				Image:    "coreos_production_oracle_oci_qcow_image.img.bz2",
+				Accounts: []ociAccountSpec{
+					ociAccountSpec{
+						ProfileName: "developer",
+						Regions: []ociRegionSpec{
+							ociRegionSpec{
+								Name: "us-phoenix-1",
+								Buckets: []ociBucketSpec{
+									ociBucketSpec{
+										Name:   "plume-prerelease",
+										Prefix: "",
+									},
+								},
+							},
+						},
+					},
+					ociAccountSpec{
+						ProfileName: "release",
+						Regions: []ociRegionSpec{
+							ociRegionSpec{
+								Name: "us-phoenix-1",
+								Buckets: []ociBucketSpec{
+									ociBucketSpec{
+										Name:   "CoreOS_Drop",
+										Prefix: "prerelease/",
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
@@ -469,6 +639,17 @@ func ChannelSpec() channelSpec {
 	}
 	if !awsOk {
 		spec.AWS = awsSpec{}
+	}
+
+	ociOk := false
+	for _, board := range ociBoards {
+		if specBoard == board {
+			ociOk = true
+			break
+		}
+	}
+	if !ociOk {
+		spec.OCI = ociSpec{}
 	}
 
 	return spec

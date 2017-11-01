@@ -21,13 +21,22 @@ import (
 	"github.com/oracle/bmcs-go-sdk"
 )
 
-func (a *API) UploadImage(bucketName, name, filePath string) (*baremetal.Object, error) {
+func (a *API) getNamespace() (*baremetal.Namespace, error) {
 	namespace, err := a.client.GetNamespace()
 	if err != nil {
 		return nil, err
 	}
 	if namespace == nil {
 		return nil, fmt.Errorf("namespace was nil")
+	}
+
+	return namespace, nil
+}
+
+func (a *API) UploadImage(bucketName, name, filePath string) (*baremetal.Object, error) {
+	namespace, err := a.getNamespace()
+	if err != nil {
+		return nil, err
 	}
 
 	data, err := ioutil.ReadFile(filePath)
@@ -41,4 +50,22 @@ func (a *API) UploadImage(bucketName, name, filePath string) (*baremetal.Object,
 		ContentType: "application/octet-stream",
 	}
 	return a.client.PutObject(*namespace, bucketName, name, data, &opts)
+}
+
+func (a *API) HeadImage(bucketName, name string) (*baremetal.HeadObject, error) {
+	namespace, err := a.getNamespace()
+	if err != nil {
+		return nil, err
+	}
+
+	return a.client.HeadObject(*namespace, bucketName, name, nil)
+}
+
+func (a *API) RenameImage(bucketName, oldName, newName string) error {
+	namespace, err := a.getNamespace()
+	if err != nil {
+		return err
+	}
+
+	return a.client.RenameObject(*namespace, bucketName, oldName, newName)
 }
