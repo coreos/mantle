@@ -17,10 +17,18 @@ ldflags="-X ${REPO_PATH}/version.Version=${version}"
 
 host_build() {
 	echo "Building $1"
-	go build -i -ldflags "${ldflags}" -o "bin/$1" "${REPO_PATH}/cmd/$1"
+
+	if [[ "${GOHOSTARCH}" == "${GOARCH}" ]]; then
+		install_dir="bin"
+	else
+		install_dir="bin/${GOARCH}"
+	fi
+	mkdir -p "${install_dir}"
+	go build -ldflags "${ldflags}" -o "${install_dir}/$1" "${REPO_PATH}/cmd/$1"
 }
 
 cross_build() {
+	[[ -z "${NO_CROSS}" ]] || return 0
 	local a
 	for a in amd64 arm64; do
 		echo "Building $a/$1"
