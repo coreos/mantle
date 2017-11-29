@@ -18,10 +18,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	osexec "os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/coreos/pkg/capnslog"
 	"github.com/satori/go.uuid"
@@ -255,6 +257,22 @@ func (qc *Cluster) NewMachineWithOptions(userdata *conf.UserData, options Machin
 	if err = qm.qemu.Start(); err != nil {
 		return nil, err
 	}
+
+	// wait in the background for qemu to die so we can tell if it was killed (as it should be) or ran in to
+	// some other problem and died.
+	go func() {
+		err := qm.qemu.Wait()
+		if exitErr, ok := err.(*osexec.ExitError); ok && err != nil {
+			plog.Debugf("qemu exited: %v", exitErr)
+			// safe type assertion - we only support Linux
+			if waitStatus := exitErr.ProcessState.Sys().(syscall.WaitStatus); !waitStatus.Signaled() {
+				// Under normal operation, we kill qemu. It should not exit; if it does, log it.
+				plog.Errorf("qemu exited unexpectantly: %v", exitErr)
+			}
+		} else if err != nil {
+			plog.Errorf("qemu failed unexpectedly (not killed): %v", err)
+		}
+	}()
 
 	if err := platform.StartMachine(qm, qm.journal, qc.RuntimeConf()); err != nil {
 		qm.Destroy()
