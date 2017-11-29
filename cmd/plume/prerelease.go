@@ -37,6 +37,7 @@ import (
 	"github.com/coreos/mantle/auth"
 	"github.com/coreos/mantle/platform/api/aws"
 	"github.com/coreos/mantle/platform/api/azure"
+	"github.com/coreos/mantle/platform/api/oci"
 	"github.com/coreos/mantle/sdk"
 	"github.com/coreos/mantle/storage"
 	"github.com/coreos/mantle/util"
@@ -59,12 +60,17 @@ var (
 			displayName: "Azure",
 			handler:     azurePreRelease,
 		},
+		"oci": platform{
+			displayName: "OCI",
+			handler:     ociPreRelease,
+		},
 	}
 	platformList []string
 
 	selectedPlatforms  []string
 	azureProfile       string
 	awsCredentialsFile string
+	ociProfile         string
 	verifyKeyFile      string
 	imageInfoFile      string
 )
@@ -77,6 +83,7 @@ type platform struct {
 type imageInfo struct {
 	AWS   *amiList        `json:"aws,omitempty"`
 	Azure *azureImageInfo `json:"azure,omitempty"`
+	OCI   *ociList        `json:"oci,omitempty"`
 }
 
 func init() {
@@ -88,6 +95,7 @@ func init() {
 	cmdPreRelease.Flags().StringSliceVar(&selectedPlatforms, "platform", platformList, "platform to pre-release")
 	cmdPreRelease.Flags().StringVar(&azureProfile, "azure-profile", "", "Azure Profile json file")
 	cmdPreRelease.Flags().StringVar(&awsCredentialsFile, "aws-credentials", "", "AWS credentials file")
+	cmdPreRelease.Flags().StringVar(&ociProfile, "oci-profile", "", "OCI profile file")
 	cmdPreRelease.Flags().StringVar(&verifyKeyFile,
 		"verify-key", "", "path to ASCII-armored PGP public key to be used in verifying download signatures.  Defaults to CoreOS Buildbot (0412 7D0B FABE C887 1FFB  2CCE 50E0 8855 93D2 DCB4)")
 	cmdPreRelease.Flags().StringVar(&imageInfoFile, "write-image-list", "", "optional output file describing uploaded images")
@@ -603,5 +611,61 @@ func awsPreRelease(ctx context.Context, client *http.Client, src *storage.Bucket
 	}
 
 	imageInfo.AWS = &amis
+	return nil
+}
+
+type ociList struct {
+	Images []string `json:"images"`
+}
+
+func ociUploadImage(acc ociAccountSpec, region ociRegionSpec, imageName, imagePath string, list *ociList) error {
+	api, err := oci.New(&oci.Options{
+		ConfigPath: ociProfile,
+		Profile:    acc.ProfileName,
+		Region:     region.Name,
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, bucket := range region.Buckets {
+		imageName := fmt.Sprintf("%v%v", bucket.Prefix, imageName)
+		img, err := api.UploadImage(bucket.Name, imageName, imagePath)
+		if err != nil {
+			return err
+		}
+		list.Images = append(list.Images, fmt.Sprintf(
+			"https://objectstorage.%s.oraclecloud.com/n/%s/b/%s/o/%s",
+			region.Name, img.HeadObject.Namespace, img.HeadObject.Bucket, imageName))
+	}
+
+	return nil
+}
+
+func ociPreRelease(ctx context.Context, client *http.Client, src *storage.Bucket, spec *channelSpec, imageInfo *imageInfo) error {
+	if spec.OCI.Image == "" {
+		plog.Notice("OCI image creation disabled.")
+		return nil
+	}
+
+	imageName := fmt.Sprintf("%v-%v-%v.img", spec.OCI.BaseName, specChannel, specVersion)
+	imageName = regexp.MustCompile(`[^A-Za-z0-9()\\./_-]`).ReplaceAllLiteralString(imageName, "_")
+
+	imagePath, err := getImageFile(client, src, spec.OCI.Image)
+	if err != nil {
+		return err
+	}
+
+	var list ociList
+	for _, acc := range spec.OCI.Accounts {
+		for _, region := range acc.Regions {
+			err = ociUploadImage(acc, region, imageName, imagePath, &list)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	imageInfo.OCI = &list
 	return nil
 }

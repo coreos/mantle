@@ -31,6 +31,7 @@ import (
 	"github.com/coreos/mantle/platform/api/aws"
 	"github.com/coreos/mantle/platform/api/azure"
 	"github.com/coreos/mantle/platform/api/gcloud"
+	"github.com/coreos/mantle/platform/api/oci"
 	"github.com/coreos/mantle/storage"
 	"github.com/coreos/mantle/storage/index"
 )
@@ -48,6 +49,7 @@ var (
 func init() {
 	cmdRelease.Flags().StringVar(&awsCredentialsFile, "aws-credentials", "", "AWS credentials file")
 	cmdRelease.Flags().StringVar(&azureProfile, "azure-profile", "", "Azure Profile json file")
+	cmdRelease.Flags().StringVar(&ociProfile, "oci-profile", "", "OCI profile file")
 	cmdRelease.Flags().BoolVarP(&releaseDryRun, "dry-run", "n", false,
 		"perform a trial run, do not make changes")
 	AddSpecFlags(cmdRelease.Flags())
@@ -90,6 +92,9 @@ func runRelease(cmd *cobra.Command, args []string) {
 
 	// Make AWS images public.
 	doAWS(ctx, client, src, &spec)
+
+	// Make OCI images public.
+	doOCI(ctx, client, src, &spec)
 
 	for _, dSpec := range spec.Destinations {
 		dst, err := storage.NewBucket(client, dSpec.BaseURL)
@@ -404,6 +409,54 @@ func doAWS(ctx context.Context, client *http.Client, src *storage.Bucket, spec *
 			}
 			publish(imageName)
 			publish(imageName + "-hvm")
+		}
+	}
+}
+
+func doOCI(ctx context.Context, client *http.Client, src *storage.Bucket, spec *channelSpec) {
+	if spec.OCI.Image == "" {
+		plog.Notice("OCI image creation disabled.")
+		return
+	}
+
+	imageName := fmt.Sprintf("%v-%v-%v.img", spec.OCI.BaseName, specChannel, specVersion)
+
+	for _, acc := range spec.OCI.Accounts {
+		for _, region := range acc.Regions {
+			api, err := oci.New(&oci.Options{
+				ConfigPath: ociProfile,
+				Profile:    acc.ProfileName,
+				Region:     region.Name,
+			})
+			if err != nil {
+				plog.Fatalf("creating client for %v in %v: %v", acc.ProfileName, region.Name, err)
+			}
+
+			for _, bucket := range region.Buckets {
+				// If the bucket Prefix is an empty string then the bucket is not
+				// considered a release bucket, skip it.
+				if bucket.Prefix == "" {
+					continue
+				}
+
+				// If the released image already exists then continue.
+				if _, err = api.HeadImage(bucket.Name, imageName); err == nil {
+					continue
+				}
+
+				preName := fmt.Sprintf("%v%v", bucket.Prefix, imageName)
+				_, err = api.HeadImage(bucket.Name, preName)
+				if err != nil {
+					plog.Fatalf("couldn't find image %q in %v %v: %v", preName, acc.ProfileName, region.Name, err)
+				}
+
+				if !releaseDryRun {
+					err = api.RenameImage(bucket.Name, preName, imageName)
+					if err != nil {
+						plog.Fatalf("renaming image %q in %v %v: %v", preName, acc.ProfileName, region.Name, err)
+					}
+				}
+			}
 		}
 	}
 }
