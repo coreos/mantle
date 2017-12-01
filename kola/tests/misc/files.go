@@ -16,10 +16,13 @@ package misc
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/coreos/mantle/kola/cluster"
 	"github.com/coreos/mantle/kola/register"
+	"github.com/coreos/mantle/platform"
+	"github.com/coreos/mantle/platform/conf"
 )
 
 func init() {
@@ -38,6 +41,7 @@ func Filesystem(c cluster.TestCluster) {
 	c.Run("writabledirs", WritableDirs)
 	c.Run("stickydirs", StickyDirs)
 	c.Run("blacklist", Blacklist)
+	c.Run("wiperoot", WipeRoot)
 }
 
 func sugidFiles(c cluster.TestCluster, validfiles []string, mode string) {
@@ -206,5 +210,150 @@ func Blacklist(c cluster.TestCluster) {
 
 	if string(output) != "" {
 		c.Fatalf("Blacklisted files or directories found:\n%s", output)
+	}
+}
+
+func getAllFiles(c cluster.TestCluster, m platform.Machine) map[string]string {
+	out := string(c.MustSSH(m, "sudo find / -ignore_readdir_race -mount -path /var -prune -o -type f -print0 | xargs -0 sudo md5sum"))
+	ret := map[string]string{}
+	for _, line := range strings.Split(out, "\n") {
+		line := strings.TrimSpace(line)
+		key := strings.Split(line,"  ")[1]
+		value := strings.Split(line, " ")[0]
+		ret[key] = value
+	}
+	return ret
+}
+
+// WipeRoot tests Ignition wiping the root fs actually performs a "factory reset"
+func WipeRoot(c cluster.TestCluster) {
+	wipeConf := conf.ContainerLinuxConfig(`storage:
+  filesystems:
+    - mount:
+        device: /dev/disk/by-label/ROOT
+        format: ext4
+        wipe_filesystem: true
+        label: ROOT
+`)
+
+	wipedMachine, err := c.NewMachine(wipeConf)
+	if err != nil {
+		c.Fatalf("Cluster.NewMachine: %s", err)
+	}
+
+	defer wipedMachine.Destroy()
+
+	ignore := []string {
+		// ignore generated host keys
+		"/etc/ssh/ssh_host_dsa_key",
+		"/etc/ssh/ssh_host_ecdsa_key",
+		"/etc/ssh/ssh_host_ed25519_key",
+		"/etc/ssh/ssh_host_rsa_key",
+		"/etc/ssh/ssh_host_dsa_key.pub",
+		"/etc/ssh/ssh_host_ecdsa_key.pub",
+		"/etc/ssh/ssh_host_ed25519_key.pub",
+		"/etc/ssh/ssh_host_rsa_key.pub",
+		// machine-id *should* be different
+		"/etc/machine-id",
+	}
+	ignoreDiff := func(in string) bool {
+		for _, ok := range ignore {
+			if ok == in {
+				return true
+			}
+		}
+		return false
+	}
+
+	unordered := []string{
+		"/etc/passwd",
+		"/etc/passwd-",
+		"/etc/shadow",
+		"/etc/shadow-",
+		"/etc/group",
+		"/etc/group-",
+		"/etc/gpasswd",
+		"/etc/gpasswd-",
+		"/etc/gshadow",
+		"/etc/gshadow-",
+	}
+
+	mapLines := func(in []byte) map[string]struct{} {
+		ret := map[string]struct{}{}
+		for _, line := range strings.Split(string(in), "\n") {
+			ret[line] = struct{}{}
+		}
+		return ret
+	}
+
+	// unorderedEqual returns true if the file k has the same lines on both m1 and m2 regardless of
+	// order.
+	unorderedEqual := func(c cluster.TestCluster, m1, m2 platform.Machine, k string) bool {
+		valid := false
+		for _, ok := range unordered {
+			if k == ok {
+				valid = true
+				break;
+			}
+		}
+		if !valid {
+			return false
+		}
+		cmd := fmt.Sprintf("sudo cat %v", k)
+		m1contents := mapLines(c.MustSSH(m1, cmd))
+		m2contents := mapLines(c.MustSSH(m2, cmd))
+		return reflect.DeepEqual(m1contents, m2contents)
+	}
+
+
+
+	notWiped := getAllFiles(c, c.Machines()[0])
+	wiped := getAllFiles(c, wipedMachine)
+
+	var diffs, notInWiped, notInUnwiped []string
+
+	for k, v := range notWiped {
+		if v2, ok := wiped[k]; ok {
+			if v != v2 && !ignoreDiff(k) && !unorderedEqual(c, c.Machines()[0], wipedMachine, k) {
+				diffs = append(diffs, k)
+			}
+		} else {
+			notInWiped = append(notInWiped, k)
+		}
+	}
+	for k, _ := range wiped {
+		if _, ok := notWiped[k]; !ok {
+			notInUnwiped = append(notInUnwiped, k)
+		}
+	}
+
+	failed := false;
+
+	if len(diffs) != 0 {
+		failed = true
+		c.Logf("Files that differ: ")
+		for _, file := range diffs {
+			c.Logf("%v", file)
+		}
+	}
+
+	if len(notInWiped) != 0 {
+		failed = true
+		c.Logf("Files absent after wipe: ")
+		for _, file := range notInWiped {
+			c.Logf("%v", file)
+		}
+	}
+
+	if len(notInUnwiped) != 0 {
+		failed = true
+		c.Logf("New files after wipe: ")
+		for _, file := range notInUnwiped {
+			c.Logf("%v", file)
+		}
+	}
+
+	if failed {
+		c.Fatalf("Root partition differed after wipe")
 	}
 }
