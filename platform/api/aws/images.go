@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -381,7 +382,7 @@ func (a *API) createImage(params *ec2.RegisterImageInput) (string, error) {
 		// The AMI already exists. Get its ID. Due to races, this
 		// may take several attempts.
 		for {
-			imageID, err := a.FindImage(*params.Name)
+			imageID, err := a.FindDedupeImage(*params.Name)
 			if err != nil {
 				return "", err
 			}
@@ -514,7 +515,7 @@ func (a *API) CopyImage(sourceImageID string, regions []string) (map[string]stri
 }
 
 func (a *API) copyImageIn(sourceRegion, sourceImageID, name, description string, imageTags, snapshotTags []*ec2.Tag, launchPermissions []*ec2.LaunchPermission) (string, error) {
-	imageID, err := a.FindImage(name)
+	imageID, err := a.FindDedupeImage(name)
 	if err != nil {
 		return "", err
 	}
@@ -585,19 +586,68 @@ func (a *API) copyImageIn(sourceRegion, sourceImageID, name, description string,
 	// constraint that multiple images cannot have the same name.
 	// As a result we could have created a duplicate image after
 	// losing a race with a CopyImage task created by a previous run.
-	// Don't try to clean this up automatically for now, but at least
-	// detect it so plume pre-release doesn't leave any surprises for
-	// plume release.
-	_, err = a.FindImage(name)
+	// Make an attempt to clean this up automatically now.
+	dedupedId, err := a.FindDedupeImage(name)
 	if err != nil {
-		return "", fmt.Errorf("checking for duplicate images: %v", err)
+		return "", fmt.Errorf("error checking for duplicate images: %v", err)
 	}
 
-	return imageID, nil
+	return dedupedId, nil
 }
 
-// Find an image we own with the specified name. Return ID or "".
+// FindDedupeImage finds an image given its name, but also attempts to
+// automatically handle duplicate private images. If multiple images, all
+// private, are found, it deregisters all but the first.
+// This is necessary because, although names are meant to be unique, use of the
+// "CopyImage" API semi-frequently results in duplicates.
+func (a *API) FindDedupeImage(name string) (string, error) {
+	images, err := a.findImages(name)
+	if err != nil || len(images) == 0 {
+		return "", err
+	}
+	if len(images) == 1 {
+		return *images[0].ImageId, nil
+	}
+
+	for _, image := range images {
+		if *image.Public {
+			return "", fmt.Errorf("multiple images found named %q; could not automatically resolve because %q is already public", name, *image.ImageId)
+		}
+	}
+
+	ids := mapImagesToIds(images)
+	// Deterministically pick an id to keep
+	sort.Strings(ids)
+
+	plog.Infof("found multiple images named %q (%v): keeping %q", name, ids, ids[0])
+
+	for i := 1; i < len(ids); i++ {
+		_, err := a.ec2.DeregisterImage(&ec2.DeregisterImageInput{
+			ImageId: aws.String(ids[i]),
+		})
+		if err != nil {
+			return "", fmt.Errorf("error trying to cleanup dupe images named %q (%v): %v", name, ids, err)
+		}
+	}
+
+	return ids[0], nil
+}
+
+// FindImage finds an Image's ID given its name.
+// If multiple images with that name exit, FindImage will return an error.
 func (a *API) FindImage(name string) (string, error) {
+	images, err := a.findImages(name)
+	if err != nil || len(images) == 0 {
+		return "", err
+	}
+
+	if len(images) > 1 {
+		return "", fmt.Errorf("multiple images found with name %q: %v", name, mapImagesToIds(images))
+	}
+	return *images[0].ImageId, nil
+}
+
+func (a *API) findImages(name string) ([]*ec2.Image, error) {
 	describeRes, err := a.ec2.DescribeImages(&ec2.DescribeImagesInput{
 		Filters: []*ec2.Filter{
 			&ec2.Filter{
@@ -608,15 +658,9 @@ func (a *API) FindImage(name string) (string, error) {
 		Owners: aws.StringSlice([]string{"self"}),
 	})
 	if err != nil {
-		return "", fmt.Errorf("couldn't describe images: %v", err)
+		return nil, fmt.Errorf("couldn't describe images: %v", err)
 	}
-	if len(describeRes.Images) > 1 {
-		return "", fmt.Errorf("found multiple images with name %v", name)
-	}
-	if len(describeRes.Images) == 1 {
-		return *describeRes.Images[0].ImageId, nil
-	}
-	return "", nil
+	return describeRes.Images, nil
 }
 
 func (a *API) describeImage(imageID string) (*ec2.Image, error) {
@@ -676,4 +720,12 @@ func (a *API) PublishImage(imageID string) error {
 	}
 
 	return nil
+}
+
+func mapImagesToIds(images []*ec2.Image) []string {
+	ids := make([]string, len(images))
+	for i := range images {
+		ids[i] = *images[i].ImageId
+	}
+	return ids
 }
