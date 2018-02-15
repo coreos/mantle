@@ -587,12 +587,12 @@ func (a *API) copyImageIn(sourceRegion, sourceImageID, name, description string,
 	// As a result we could have created a duplicate image after
 	// losing a race with a CopyImage task created by a previous run.
 	// Make an attempt to clean this up automatically now.
-	dedupedId, err := a.findAndDedupeImage(name)
+	dedupedID, err := a.findAndDedupeImage(name)
 	if err != nil {
 		return "", fmt.Errorf("error checking for duplicate images: %v", err)
 	}
 
-	return dedupedId, nil
+	return dedupedID, nil
 }
 
 // findAndDedupeImage finds an image given its name, but also attempts to
@@ -600,6 +600,8 @@ func (a *API) copyImageIn(sourceRegion, sourceImageID, name, description string,
 // private, are found, it deregisters all but one.
 // This is necessary because, although names are meant to be unique, use of the
 // "CopyImage" API semi-frequently results in duplicates.
+// If the name doesn't refer to any images, an empty string and no error will
+// be returned.
 func (a *API) findAndDedupeImage(name string) (string, error) {
 	images, err := a.findImages(name)
 	if err != nil || len(images) == 0 {
@@ -635,6 +637,8 @@ func (a *API) findAndDedupeImage(name string) (string, error) {
 
 // FindImage finds an Image's ID given its name.
 // If multiple images with that name exit, FindImage will return an error.
+// If the name doesn't refer to any images, an empty string and no error will
+// be returned.
 func (a *API) FindImage(name string) (string, error) {
 	images, err := a.findImages(name)
 	if err != nil || len(images) == 0 {
@@ -673,8 +677,8 @@ func (a *API) describeImage(imageID string) (*ec2.Image, error) {
 	return describeRes.Images[0], nil
 }
 
-// Grant everyone launch permission on the specified image and create-volume
-// permission on its underlying snapshot.
+// PublishImage grants everyone launch permission on the specified image and
+// create-volume permission on its underlying snapshot.
 func (a *API) PublishImage(imageID string) error {
 	// snapshot create-volume permission
 	image, err := a.describeImage(imageID)
