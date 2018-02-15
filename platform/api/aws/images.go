@@ -382,7 +382,7 @@ func (a *API) createImage(params *ec2.RegisterImageInput) (string, error) {
 		// The AMI already exists. Get its ID. Due to races, this
 		// may take several attempts.
 		for {
-			imageID, err := a.FindDedupeImage(*params.Name)
+			imageID, err := a.findAndDedupeImage(*params.Name)
 			if err != nil {
 				return "", err
 			}
@@ -515,7 +515,7 @@ func (a *API) CopyImage(sourceImageID string, regions []string) (map[string]stri
 }
 
 func (a *API) copyImageIn(sourceRegion, sourceImageID, name, description string, imageTags, snapshotTags []*ec2.Tag, launchPermissions []*ec2.LaunchPermission) (string, error) {
-	imageID, err := a.FindDedupeImage(name)
+	imageID, err := a.findAndDedupeImage(name)
 	if err != nil {
 		return "", err
 	}
@@ -587,7 +587,7 @@ func (a *API) copyImageIn(sourceRegion, sourceImageID, name, description string,
 	// As a result we could have created a duplicate image after
 	// losing a race with a CopyImage task created by a previous run.
 	// Make an attempt to clean this up automatically now.
-	dedupedId, err := a.FindDedupeImage(name)
+	dedupedId, err := a.findAndDedupeImage(name)
 	if err != nil {
 		return "", fmt.Errorf("error checking for duplicate images: %v", err)
 	}
@@ -595,12 +595,12 @@ func (a *API) copyImageIn(sourceRegion, sourceImageID, name, description string,
 	return dedupedId, nil
 }
 
-// FindDedupeImage finds an image given its name, but also attempts to
+// findAndDedupeImage finds an image given its name, but also attempts to
 // automatically handle duplicate private images. If multiple images, all
-// private, are found, it deregisters all but the first.
+// private, are found, it deregisters all but one.
 // This is necessary because, although names are meant to be unique, use of the
 // "CopyImage" API semi-frequently results in duplicates.
-func (a *API) FindDedupeImage(name string) (string, error) {
+func (a *API) findAndDedupeImage(name string) (string, error) {
 	images, err := a.findImages(name)
 	if err != nil || len(images) == 0 {
 		return "", err
