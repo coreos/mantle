@@ -591,6 +591,9 @@ func (a *API) copyImageIn(sourceRegion, sourceImageID, name, description string,
 	if err != nil {
 		return "", fmt.Errorf("error checking for duplicate images: %v", err)
 	}
+	if dedupedID == "" {
+		return "", fmt.Errorf("did not find image %q", name)
+	}
 
 	return dedupedID, nil
 }
