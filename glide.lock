@@ -1,5 +1,5 @@
-hash: d7c26224e97d03fbba50efe1beebc5a1dd863041e0d1ae6a6992b0d543bf50ef
-updated: 2018-03-07T11:54:54.468556192-08:00
+hash: d0f1fdd5d6a0012fd9ccd5ca6bb5c6ccf89a1071d02649bedb9235f957b0a52a
+updated: 2018-03-07T12:04:29.146783957-08:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -162,7 +162,7 @@ imports:
   subpackages:
   - md2man
 - name: github.com/digitalocean/godo
-  version: 77ea48de76a7b31b234d854f15d003c68bb2fb90
+  version: 54622b1d85b2f0f4949cbd7e0637e04fc1f56ad9
   subpackages:
   - context
 - name: github.com/gengo/grpc-gateway

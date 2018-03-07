@@ -174,7 +174,10 @@ import:
   subpackages:
   - md2man
 - package: github.com/digitalocean/godo
-  version: v1.1.1
+  # This is a little past v.1.1.2, but has a commit we want for handling non-json errors
+  # It should be verted to a tag instead of a commit once there's a release with this
+  # commit in it.
+  version: 54622b1d85b2f0f4949cbd7e0637e04fc1f56ad9
 - package: github.com/gengo/grpc-gateway
   version: dcb844349dc5d2cb0300fdc4d2d374839d0d2e13
   subpackages:
