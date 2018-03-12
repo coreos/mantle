@@ -30,85 +30,111 @@ var (
 	}
 )
 
-func init() {
-	OCI.AddCommand(cmdDelete)
-}
-
 func runDeleteVCN(cmd *cobra.Command, args []string) {
 	if len(args) != 0 {
 		fmt.Fprintf(os.Stderr, "Unrecognized args in ore clear cmd: %v\n", args)
 		os.Exit(2)
 	}
 
+	if err := deleteVCN(); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+}
+
+func deleteVCN() error {
 	vcn, err := API.GetVCN("kola")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "A Virtual Cloud Network named `kola` doesn't exist!\n")
-		os.Exit(1)
+		return fmt.Errorf("A Virtual Cloud Network named `kola` doesn't exist!")
 	}
 
-	subnets, err := API.ListSubnets(vcn.ID)
+	if vcn.Id == nil {
+		return fmt.Errorf("received virtual cloud network id nil")
+	}
+	if vcn.DisplayName == nil {
+		return fmt.Errorf("received virtual cloud network display name nil")
+	}
+
+	secLists, err := API.ListSecurityLists(*vcn.Id)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Getting Subnets: %v\n", err)
-		os.Exit(1)
-	}
-
-	for _, subnet := range subnets {
-		err = API.DeleteSubnet(subnet.ID)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Deleting Subnet %s: %v\n", subnet.DisplayName, err)
-			os.Exit(1)
-		}
-	}
-
-	rts, err := API.ListRouteTables(vcn.ID)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Getting Route Tables: %v\n", err)
-		os.Exit(1)
-	}
-
-	for _, rt := range rts {
-		if rt.DisplayName != fmt.Sprintf("Default Route Table for %s", vcn.DisplayName) {
-			err = API.DeleteRouteTable(rt.ID)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Deleting Route Table %s: %v\n", rt.DisplayName, err)
-				os.Exit(1)
-			}
-		}
-	}
-
-	igws, err := API.ListInternetGateways(vcn.ID)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Getting Internet Gateways: %v\n", err)
-		os.Exit(1)
-	}
-
-	for _, igw := range igws {
-		err = API.DeleteInternetGateway(igw.ID)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Deleting Internet Gateway %s: %v\n", igw.DisplayName, err)
-			os.Exit(1)
-		}
-	}
-
-	secLists, err := API.ListSecurityLists(vcn.ID)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Getting Security Lists: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("Getting Security Lists: %v", err)
 	}
 
 	for _, secList := range secLists {
-		if secList.DisplayName != fmt.Sprintf("Default Security List for %s", vcn.DisplayName) {
-			err = API.DeleteSecurityList(secList.ID)
+		if secList.DisplayName == nil {
+			return fmt.Errorf("received security list display name nil")
+		}
+		if secList.Id == nil {
+			return fmt.Errorf("received security list id nil")
+		}
+		if *secList.DisplayName != fmt.Sprintf("Default Security List for %s", *vcn.DisplayName) {
+			err = API.DeleteSecurityList(*secList.Id)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Deleting Security List %s: %v\n", secList.DisplayName, err)
-				os.Exit(1)
+				return fmt.Errorf("Deleting Security List %s: %v", *secList.DisplayName, err)
 			}
 		}
 	}
 
-	err = API.DeleteVCN(vcn.ID)
+	subnets, err := API.ListSubnets(*vcn.Id)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Deleting Virtual Cloud Network %s: %v\n", vcn.DisplayName, err)
-		os.Exit(1)
+		return fmt.Errorf("Getting Subnets: %v", err)
 	}
+
+	for _, subnet := range subnets {
+		if subnet.Id == nil {
+			return fmt.Errorf("received subnet id nil")
+		}
+		if subnet.DisplayName == nil {
+			return fmt.Errorf("received subnet display name nil")
+		}
+		err = API.DeleteSubnet(*subnet.Id)
+		if err != nil {
+			return fmt.Errorf("Deleting Subnet %s: %v", *subnet.DisplayName, err)
+		}
+	}
+
+	rts, err := API.ListRouteTables(*vcn.Id)
+	if err != nil {
+		return fmt.Errorf("Getting Route Tables: %v", err)
+	}
+
+	for _, rt := range rts {
+		if rt.DisplayName == nil {
+			return fmt.Errorf("received route table display name nil")
+		}
+		if rt.Id == nil {
+			return fmt.Errorf("received route table id nil")
+		}
+		if *rt.DisplayName != fmt.Sprintf("Default Route Table for %s", *vcn.DisplayName) {
+			err = API.DeleteRouteTable(*rt.Id)
+			if err != nil {
+				return fmt.Errorf("Deleting Route Table %s: %v", *rt.DisplayName, err)
+			}
+		}
+	}
+
+	igws, err := API.ListInternetGateways(*vcn.Id)
+	if err != nil {
+		return fmt.Errorf("Getting Internet Gateways: %v", err)
+	}
+
+	for _, igw := range igws {
+		if igw.Id == nil {
+			return fmt.Errorf("received internet gateway id nil")
+		}
+		if igw.DisplayName == nil {
+			return fmt.Errorf("received internet gateway display name nil")
+		}
+		err = API.DeleteInternetGateway(*igw.Id)
+		if err != nil {
+			return fmt.Errorf("Deleting Internet Gateway %s: %v", *igw.DisplayName, err)
+		}
+	}
+
+	err = API.DeleteVCN(*vcn.Id)
+	if err != nil {
+		return fmt.Errorf("Deleting Virtual Cloud Network %s: %v", *vcn.DisplayName, err)
+	}
+
+	return nil
 }

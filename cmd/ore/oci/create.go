@@ -39,48 +39,70 @@ func runCreateVCN(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Unrecognized args in ore setup cmd: %v\n", args)
 		os.Exit(2)
 	}
+	if err := createVCN(); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+}
 
+func createVCN() error {
 	_, err := API.GetVCN("kola")
 	if err == nil {
-		fmt.Fprintf(os.Stderr, "A Virtual Cloud Network named `kola` already exists!\n")
-		os.Exit(1)
+		return fmt.Errorf("A Virtual Cloud Network named `kola` already exists!")
 	}
 
-	vcn, err := API.CreateVCN("kola", "10.0.0.0/16")
+	vcnResp, err := API.CreateVCN("kola", "10.0.0.0/16")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Creating VCN: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("Creating VCN: %v", err)
+	}
+	vcn := vcnResp.Vcn
+
+	if vcn.Id == nil {
+		return fmt.Errorf("received virtual cloud network id nil")
 	}
 
-	secList, err := API.CreateDefaultSecurityList(vcn.ID)
+	secList, err := API.CreateDefaultSecurityList(*vcn.Id)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Creating default Security List: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("Creating default Security List: %v", err)
 	}
 
-	igw, err := API.CreateInternetGateway(vcn.ID)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Creating Internet Gateway: %v\n", err)
-		os.Exit(1)
+	if secList.Id == nil {
+		return fmt.Errorf("received security list id nil")
 	}
 
-	rt, err := API.CreateDefaultRouteTable(vcn.ID, igw.ID)
+	igw, err := API.CreateInternetGateway(*vcn.Id)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Creating default Route Table: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("Creating Internet Gateway: %v", err)
+	}
+
+	if igw.Id == nil {
+		return fmt.Errorf("received internet gateway id nil")
+	}
+
+	rt, err := API.CreateDefaultRouteTable(*vcn.Id, *igw.Id)
+	if err != nil {
+		return fmt.Errorf("Creating default Route Table: %v", err)
+	}
+
+	if rt.Id == nil {
+		return fmt.Errorf("received route table id nil")
 	}
 
 	ads, err := API.ListAvailabilityDomains()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Listing Availability Domains: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("Listing Availability Domains: %v", err)
 	}
 
 	ad := ads[0]
 
-	_, err = API.CreateSubnet("kola1", ad.Name, "10.0.0.0/16", vcn.ID, secList.ID, rt.ID)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Creating Subnet: %v\n", err)
-		os.Exit(1)
+	if ad.Name == nil {
+		return fmt.Errorf("received availability domain name nil")
 	}
+
+	_, err = API.CreateSubnet("kola1", *ad.Name, "10.0.0.0/16", *vcn.Id, *secList.Id, *rt.Id)
+	if err != nil {
+		return fmt.Errorf("Creating Subnet: %v", err)
+	}
+
+	return nil
 }
