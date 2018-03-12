@@ -15,194 +15,259 @@
 package oci
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/oracle/bmcs-go-sdk"
+	"github.com/oracle/oci-go-sdk/core"
+	"github.com/oracle/oci-go-sdk/identity"
 )
 
-func (a *API) GetVCN(name string) (*baremetal.VirtualNetwork, error) {
-	vcns, err := a.client.ListVirtualNetworks(a.opts.CompartmentID, nil)
+const (
+	TCP  = "6"
+	UDP  = "17"
+	ICMP = "1"
+)
+
+func (a *API) GetVCN(name string) (core.Vcn, error) {
+	vcns, err := a.vn.ListVcns(context.Background(), core.ListVcnsRequest{
+		CompartmentId: &a.opts.CompartmentID,
+		DisplayName:   &name,
+	})
 	if err != nil {
-		return nil, err
+		return core.Vcn{}, err
 	}
 
-	for _, v := range vcns.VirtualNetworks {
-		if name == v.DisplayName {
-			return &v, nil
+	for _, v := range vcns.Items {
+		if v.DisplayName != nil && name == *v.DisplayName {
+			return v, nil
 		}
 	}
 
-	return nil, fmt.Errorf("couldn't find Virtual Network %s", name)
+	return core.Vcn{}, fmt.Errorf("couldn't find Virtual Network %s", name)
 }
 
-func (a *API) ListAvailabilityDomains() ([]baremetal.AvailabilityDomain, error) {
-	ads, err := a.client.ListAvailabilityDomains(a.opts.CompartmentID)
+func (a *API) ListAvailabilityDomains() ([]identity.AvailabilityDomain, error) {
+	ads, err := a.identity.ListAvailabilityDomains(context.Background(), identity.ListAvailabilityDomainsRequest{
+		CompartmentId: &a.opts.CompartmentID,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	return ads.AvailabilityDomains, err
+	return ads.Items, err
 }
 
-func (a *API) CreateVCN(name, cidrBlock string) (*baremetal.VirtualNetwork, error) {
-	return a.client.CreateVirtualNetwork(cidrBlock, a.opts.CompartmentID, &baremetal.CreateVcnOptions{
-		CreateOptions: baremetal.CreateOptions{
-			DisplayNameOptions: baremetal.DisplayNameOptions{
-				DisplayName: name,
-			},
+func (a *API) CreateVCN(name, cidrBlock string) (core.CreateVcnResponse, error) {
+	return a.vn.CreateVcn(context.Background(), core.CreateVcnRequest{
+		CreateVcnDetails: core.CreateVcnDetails{
+			CidrBlock:     &cidrBlock,
+			CompartmentId: &a.opts.CompartmentID,
+			DisplayName:   &name,
+			DnsLabel:      &name,
 		},
-		DnsLabel: name,
 	})
 }
 
 func (a *API) DeleteVCN(ID string) error {
-	return a.client.DeleteVirtualNetwork(ID, nil)
+	_, err := a.vn.DeleteVcn(context.Background(), core.DeleteVcnRequest{
+		VcnId: &ID,
+	})
+	return err
 }
 
-func (a *API) CreateSubnet(subdomain, availabilityDomain, cidrBlock, vcnID, securityListID, routeTableID string) (*baremetal.Subnet, error) {
-	return a.client.CreateSubnet(availabilityDomain, cidrBlock, a.opts.CompartmentID, vcnID, &baremetal.CreateSubnetOptions{
-		SecurityListIDs: []string{securityListID},
-		RouteTableID:    routeTableID,
-		DNSLabel:        subdomain,
+func (a *API) CreateSubnet(subdomain, availabilityDomain, cidrBlock, vcnID, securityListID, routeTableID string) (core.CreateSubnetResponse, error) {
+	return a.vn.CreateSubnet(context.Background(), core.CreateSubnetRequest{
+		CreateSubnetDetails: core.CreateSubnetDetails{
+			AvailabilityDomain: &availabilityDomain,
+			CidrBlock:          &cidrBlock,
+			CompartmentId:      &a.opts.CompartmentID,
+			VcnId:              &vcnID,
+			DnsLabel:           &subdomain,
+			RouteTableId:       &routeTableID,
+			SecurityListIds:    []string{securityListID},
+		},
 	})
 }
 
-func (a *API) CreateInternetGateway(vcnID string) (*baremetal.InternetGateway, error) {
-	return a.client.CreateInternetGateway(a.opts.CompartmentID, vcnID, true, nil)
+func (a *API) CreateInternetGateway(vcnID string) (core.CreateInternetGatewayResponse, error) {
+	return a.vn.CreateInternetGateway(context.Background(), core.CreateInternetGatewayRequest{
+		CreateInternetGatewayDetails: core.CreateInternetGatewayDetails{
+			CompartmentId: &a.opts.CompartmentID,
+			IsEnabled:     boolToPtr(true),
+			VcnId:         &vcnID,
+		},
+	})
 }
 
-func (a *API) ListSecurityLists(vcnID string) ([]baremetal.SecurityList, error) {
-	secLists, err := a.client.ListSecurityLists(a.opts.CompartmentID, vcnID, nil)
+func (a *API) ListSecurityLists(vcnID string) ([]core.SecurityList, error) {
+	secLists, err := a.vn.ListSecurityLists(context.Background(), core.ListSecurityListsRequest{
+		CompartmentId: &a.opts.CompartmentID,
+		VcnId:         &vcnID,
+	})
 	if err != nil {
 		return nil, err
 	}
-	return secLists.SecurityLists, nil
+	return secLists.Items, nil
 }
 
 func (a *API) DeleteSecurityList(ID string) error {
-	return a.client.DeleteSecurityList(ID, nil)
+	_, err := a.vn.DeleteSecurityList(context.Background(), core.DeleteSecurityListRequest{
+		SecurityListId: &ID,
+	})
+	return err
 }
 
-func (a *API) ListInternetGateways(vcnID string) ([]baremetal.InternetGateway, error) {
-	igws, err := a.client.ListInternetGateways(a.opts.CompartmentID, vcnID, nil)
+func (a *API) ListInternetGateways(vcnID string) ([]core.InternetGateway, error) {
+	igws, err := a.vn.ListInternetGateways(context.Background(), core.ListInternetGatewaysRequest{
+		CompartmentId: &a.opts.CompartmentID,
+		VcnId:         &vcnID,
+	})
 	if err != nil {
 		return nil, err
 	}
-	return igws.Gateways, nil
+	return igws.Items, nil
 }
 
 func (a *API) DeleteInternetGateway(ID string) error {
-	return a.client.DeleteInternetGateway(ID, nil)
+	_, err := a.vn.DeleteInternetGateway(context.Background(), core.DeleteInternetGatewayRequest{
+		IgId: &ID,
+	})
+	return err
 }
 
-func (a *API) ListRouteTables(vcnID string) ([]baremetal.RouteTable, error) {
-	rts, err := a.client.ListRouteTables(a.opts.CompartmentID, vcnID, nil)
+func (a *API) ListRouteTables(vcnID string) ([]core.RouteTable, error) {
+	rts, err := a.vn.ListRouteTables(context.Background(), core.ListRouteTablesRequest{
+		CompartmentId: &a.opts.CompartmentID,
+		VcnId:         &vcnID,
+	})
 	if err != nil {
 		return nil, err
 	}
-	return rts.RouteTables, nil
+	return rts.Items, nil
 }
 
 func (a *API) DeleteRouteTable(ID string) error {
-	return a.client.DeleteRouteTable(ID, nil)
+	_, err := a.vn.DeleteRouteTable(context.Background(), core.DeleteRouteTableRequest{
+		RtId: &ID,
+	})
+	return err
 }
 
-func (a *API) CreateDefaultSecurityList(vcnID string) (*baremetal.SecurityList, error) {
-	ingressRules := []baremetal.IngressSecurityRule{
-		{
-			// Allow all TCP on private network
-			Protocol: "6",
-			Source:   "10.0.0.0/16",
-			TCPOptions: &baremetal.TCPOptions{
-				DestinationPortRange: baremetal.PortRange{
-					Min: 1,
-					Max: 65535,
+func (a *API) CreateDefaultSecurityList(vcnID string) (core.CreateSecurityListResponse, error) {
+	return a.vn.CreateSecurityList(context.Background(), core.CreateSecurityListRequest{
+		CreateSecurityListDetails: core.CreateSecurityListDetails{
+			CompartmentId: &a.opts.CompartmentID,
+			VcnId:         &vcnID,
+			EgressSecurityRules: []core.EgressSecurityRule{
+				{
+					Destination: strToPtr("0.0.0.0/0"),
+					Protocol:    strToPtr("all"),
+				},
+			},
+			IngressSecurityRules: []core.IngressSecurityRule{
+				{
+					// Allow all TCP on private network
+					Protocol: strToPtr(TCP),
+					Source:   strToPtr("10.0.0.0/16"),
+					TcpOptions: &core.TcpOptions{
+						DestinationPortRange: &core.PortRange{
+							Min: intToPtr(1),
+							Max: intToPtr(65535),
+						},
+					},
+				},
+				{
+					// Allow all UDP on private network
+					Protocol: strToPtr(UDP),
+					Source:   strToPtr("10.0.0.0/16"),
+					UdpOptions: &core.UdpOptions{
+						DestinationPortRange: &core.PortRange{
+							Min: intToPtr(1),
+							Max: intToPtr(65535),
+						},
+					},
+				},
+				{
+					// Allow all ICMP on private network
+					Protocol: strToPtr(ICMP),
+					Source:   strToPtr("10.0.0.0/16"),
+				},
+				{
+					// Default setting:
+					// open inbound TCP traffic to port 22
+					// from any source to allow for SSH
+					Protocol: strToPtr(TCP),
+					Source:   strToPtr("0.0.0.0/0"),
+					TcpOptions: &core.TcpOptions{
+						DestinationPortRange: &core.PortRange{
+							Min: intToPtr(22),
+							Max: intToPtr(22),
+						},
+					},
+				},
+				{
+					// Default setting:
+					// allow type 3 ICMP to the machine
+					// "Destination Unreachable" from any source
+					// to allow for MTU negotiation
+					Protocol: strToPtr(ICMP),
+					Source:   strToPtr("0.0.0.0/0"),
+					IcmpOptions: &core.IcmpOptions{
+						Code: intToPtr(4),
+						Type: intToPtr(3),
+					},
 				},
 			},
 		},
-		{
-			// Allow all UDP on private network
-			Protocol: "17",
-			Source:   "10.0.0.0/16",
-			UDPOptions: &baremetal.UDPOptions{
-				DestinationPortRange: baremetal.PortRange{
-					Min: 1,
-					Max: 65535,
-				},
-			},
-		},
-		{
-			// Allow all ICMP on private network
-			Protocol: "1",
-			Source:   "10.0.0.0/16",
-		},
-		{
-			// Default setting:
-			// open inbound TCP traffic to port 22
-			// from any source to allow for SSH
-			Protocol: "6",
-			Source:   "0.0.0.0/0",
-			TCPOptions: &baremetal.TCPOptions{
-				DestinationPortRange: baremetal.PortRange{
-					Min: 22,
-					Max: 22,
-				},
-			},
-		},
-		{
-			// Default setting:
-			// allow type 3 ICMP to the machine
-			// "Destination Unreachable" from any source
-			// to allow for MTU negotiation
-			Protocol: "1",
-			Source:   "0.0.0.0/0",
-			ICMPOptions: &baremetal.ICMPOptions{
-				Code: 4,
-				Type: 3,
-			},
-		},
-	}
-
-	egressRules := []baremetal.EgressSecurityRule{
-		{
-			Destination: "0.0.0.0/0",
-			Protocol:    "all",
-		},
-	}
-
-	return a.client.CreateSecurityList(a.opts.CompartmentID, vcnID, egressRules, ingressRules, nil)
+	})
 }
 
-func (a *API) ListSubnets(vcnID string) ([]baremetal.Subnet, error) {
-	subnets, err := a.client.ListSubnets(a.opts.CompartmentID, vcnID, nil)
+func (a *API) ListSubnets(vcnID string) ([]core.Subnet, error) {
+	subnets, err := a.vn.ListSubnets(context.Background(), core.ListSubnetsRequest{
+		CompartmentId: &a.opts.CompartmentID,
+		VcnId:         &vcnID,
+	})
 	if err != nil {
 		return nil, err
 	}
-	return subnets.Subnets, nil
+	return subnets.Items, nil
 
 }
 
 func (a *API) DeleteSubnet(ID string) error {
-	return a.client.DeleteSubnet(ID, nil)
+	_, err := a.vn.DeleteSubnet(context.Background(), core.DeleteSubnetRequest{
+		SubnetId: &ID,
+	})
+	return err
 }
 
-func (a *API) getSubnetOnVCN(vcnID string) (*baremetal.Subnet, error) {
+func (a *API) getSubnetOnVCN(vcnID string) (core.Subnet, error) {
 	subnets, err := a.ListSubnets(vcnID)
 	if err != nil {
-		return nil, err
+		return core.Subnet{}, err
 	}
 
 	if len(subnets) < 1 {
-		return nil, fmt.Errorf("could't find Subnet")
+		return core.Subnet{}, fmt.Errorf("could't find Subnet")
 	}
-	return &subnets[0], nil
+	return subnets[0], nil
 }
 
-func (a *API) CreateDefaultRouteTable(vcnID, igwID string) (*baremetal.RouteTable, error) {
-	return a.client.CreateRouteTable(a.opts.CompartmentID, vcnID, []baremetal.RouteRule{
-		{
-			CidrBlock:       "0.0.0.0/0",
-			NetworkEntityID: igwID,
+func (a *API) CreateDefaultRouteTable(vcnID, igwID string) (core.RouteTable, error) {
+	rt, err := a.vn.CreateRouteTable(context.Background(), core.CreateRouteTableRequest{
+		CreateRouteTableDetails: core.CreateRouteTableDetails{
+			CompartmentId: &a.opts.CompartmentID,
+			RouteRules: []core.RouteRule{
+				{
+					CidrBlock:       strToPtr("0.0.0.0/0"),
+					NetworkEntityId: &igwID,
+				},
+			},
+			VcnId: &vcnID,
 		},
-	}, nil)
+	})
+	if err != nil {
+		return core.RouteTable{}, err
+	}
+	return rt.RouteTable, nil
 }
