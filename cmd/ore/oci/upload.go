@@ -27,13 +27,14 @@ var (
 	cmdUpload = &cobra.Command{
 		Use:   "upload",
 		Short: "Upload OCI image",
-		Long:  "Upload OCI image to objectstorage from a local file",
+		Long:  "Upload OCI image from a local file",
 		Run:   runUploadImage,
 	}
 
 	uploadImageName   string
 	uploadImageBucket string
 	uploadImageFile   string
+	uploadImageForce  bool
 )
 
 func init() {
@@ -43,6 +44,7 @@ func init() {
 	cmdUpload.Flags().StringVar(&uploadImageFile, "file",
 		build+"/images/amd64-usr/latest/coreos_production_oracle_oci_qcow_image.img",
 		"Image file")
+	cmdUpload.Flags().BoolVar(&uploadImageForce, "force", false, "overwrite existing s3 object without prompt")
 	OCI.AddCommand(cmdUpload)
 }
 
@@ -61,11 +63,30 @@ func runUploadImage(cmd *cobra.Command, args []string) {
 		uploadImageName = ver.Version
 	}
 
-	_, err := API.UploadImage(uploadImageBucket, uploadImageName, uploadImageFile)
+	f, err := os.Open(uploadImageFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Could not open image file %v: %v\n", uploadImageFile, err)
+		os.Exit(1)
+	}
+	defer f.Close()
+
+	err = API.UploadObject(f, uploadImageBucket, uploadImageName, uploadImageForce)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed uploading image: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Image %v successfully uploaded in OCI\n", uploadImageName)
+	img, err = API.CreateImage(uploadImageBucket, uploadImageName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "creating image: %v\n", err)
+		os.Exit(1)
+	}
+
+	err = API.DeleteObject(uploadImageBucket, uploadImageName)
+	if err != nil {
+		// only warn on delete failures
+		fmt.Fprintf(os.Stderr, "deleting object: %v\n", err)
+	}
+
+	fmt.Println(img)
 }
