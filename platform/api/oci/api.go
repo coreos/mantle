@@ -19,6 +19,12 @@ import (
 	"io/ioutil"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/coreos/pkg/capnslog"
 	"github.com/oracle/oci-go-sdk/common"
 	"github.com/oracle/oci-go-sdk/core"
 	"github.com/oracle/oci-go-sdk/identity"
@@ -27,6 +33,8 @@ import (
 	"github.com/coreos/mantle/auth"
 	"github.com/coreos/mantle/platform"
 )
+
+var plog = capnslog.NewPackageLogger("github.com/coreos/mantle", "platform/api/oci")
 
 type Options struct {
 	*platform.Options
@@ -44,6 +52,10 @@ type Options struct {
 	CompartmentID string
 	Image         string
 	Shape         string
+
+	// used by the s3compat objectstorage api for multipart uploads
+	SecretKey string
+	AccessKey string
 }
 
 type Machine struct {
@@ -59,6 +71,7 @@ type API struct {
 	identity identity.IdentityClient
 	os       objectstorage.ObjectStorageClient
 	vn       core.VirtualNetworkClient
+	s3       *s3.S3
 	opts     *Options
 }
 
@@ -99,6 +112,14 @@ func New(opts *Options) (*API, error) {
 		opts.CompartmentID = profile.CompartmentID
 	}
 
+	if opts.SecretKey == "" {
+		opts.SecretKey = profile.SecretKey
+	}
+
+	if opts.AccessKey == "" {
+		opts.AccessKey = profile.AccessKey
+	}
+
 	privateKey, err := ioutil.ReadFile(opts.KeyFile)
 	if err != nil {
 		return nil, fmt.Errorf("reading RSA private key: %v", err)
@@ -126,14 +147,43 @@ func New(opts *Options) (*API, error) {
 		return nil, fmt.Errorf("creating identity client: %v", err)
 	}
 
-	return &API{
+	api := &API{
 		config:   config,
 		compute:  computeClient,
 		identity: idClient,
 		os:       objectClient,
 		vn:       vnClient,
 		opts:     opts,
-	}, nil
+	}
+
+	if opts.SecretKey != "" && opts.AccessKey != "" {
+		namespace, err := api.GetNamespace()
+		if err != nil {
+			return nil, err
+		}
+
+		customResolver := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
+			if service == endpoints.S3ServiceID {
+				return endpoints.ResolvedEndpoint{
+					URL:           fmt.Sprintf("https://%s.compat.objectstorage.%s.oraclecloud.com", namespace, opts.Region),
+					SigningRegion: opts.Region,
+				}, nil
+			}
+
+			return endpoints.DefaultResolver().EndpointFor(service, region, optFns...)
+		}
+
+		sess := session.Must(session.NewSession(&aws.Config{
+			Region:           aws.String("us-west-2"),
+			EndpointResolver: endpoints.ResolverFunc(customResolver),
+			Credentials:      credentials.NewStaticCredentials(opts.AccessKey, opts.SecretKey, ""),
+			S3ForcePathStyle: boolToPtr(true),
+		}))
+
+		api.s3 = s3.New(sess)
+	}
+
+	return api, nil
 }
 
 func (a *API) GC(gracePeriod time.Duration) error {

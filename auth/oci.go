@@ -41,6 +41,8 @@ type OCIProfile struct {
 
 	// Non-Standard Keys
 	CompartmentID string `ini:"compartment"`
+	SecretKey     string `ini:"secret_key"`
+	AccessKey     string `ini:"access_key"`
 }
 
 // ReadOCIConfig builds an OCIProfile from the OCIConfig files.

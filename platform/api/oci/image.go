@@ -17,38 +17,62 @@ package oci
 import (
 	"context"
 	"fmt"
-	"os"
+	"time"
 
-	"github.com/oracle/oci-go-sdk/objectstorage"
+	"github.com/oracle/oci-go-sdk/core"
+
+	"github.com/coreos/mantle/util"
 )
 
-func (a *API) UploadImage(bucketName, name, filePath string) (objectstorage.PutObjectResponse, error) {
-	namespace, err := a.os.GetNamespace(context.Background(), objectstorage.GetNamespaceRequest{})
+func (a *API) createImage(bucketName, name string) (core.CreateImageResponse, error) {
+	namespace, err := a.GetNamespace()
 	if err != nil {
-		return objectstorage.PutObjectResponse{}, err
-	}
-	if namespace.Value == nil {
-		return objectstorage.PutObjectResponse{}, fmt.Errorf("received namespace nil")
+		return core.CreateImageResponse{}, err
 	}
 
-	file, err := os.Open(filePath)
-	if err != nil {
-		return objectstorage.PutObjectResponse{}, err
-	}
-	defer file.Close()
+	return a.compute.CreateImage(context.Background(), core.CreateImageRequest{
+		CreateImageDetails: core.CreateImageDetails{
+			CompartmentId: &a.opts.CompartmentID,
+			DisplayName:   &name,
+			ImageSourceDetails: core.ImageSourceViaObjectStorageTupleDetails{
+				BucketName:    &bucketName,
+				NamespaceName: &namespace,
+				ObjectName:    &name,
+			},
+		},
+	})
+}
 
-	fi, err := file.Stat()
+func (a *API) CreateImage(bucketName, name string) (string, error) {
+	image, err := a.createImage(bucketName, name)
 	if err != nil {
-		return objectstorage.PutObjectResponse{}, err
+		return "", fmt.Errorf("creating image: %v", err)
 	}
-	size := int(fi.Size())
+	if image.Image.Id == nil {
+		return "", fmt.Errorf("received image id nil")
+	}
 
-	return a.os.PutObject(context.Background(), objectstorage.PutObjectRequest{
-		NamespaceName: namespace.Value,
-		BucketName:    &bucketName,
-		ObjectName:    &name,
-		ContentLength: &size,
-		PutObjectBody: file,
-		ContentType:   strToPtr("application/octet-stream"),
+	err = util.WaitUntilReady(10*time.Minute, 10*time.Second, func() (bool, error) {
+		img, err := a.GetImage(*image.Image.Id)
+		if err != nil {
+			return false, fmt.Errorf("retrieving image: %v", err)
+		}
+
+		if img.Image.LifecycleState == core.ImageLifecycleStateAvailable {
+			return false, nil
+		}
+
+		return true, nil
+	})
+	if err != nil {
+		return "", fmt.Errorf("waiting for image to be available: %v", err)
+	}
+
+	return *image.Image.Id, nil
+}
+
+func (a *API) GetImage(id string) (core.GetImageResponse, error) {
+	return a.compute.GetImage(context.Background(), core.GetImageRequest{
+		ImageId: &id,
 	})
 }
