@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -31,6 +32,7 @@ import (
 	"github.com/coreos/mantle/platform/api/aws"
 	"github.com/coreos/mantle/platform/api/azure"
 	"github.com/coreos/mantle/platform/api/gcloud"
+	"github.com/coreos/mantle/platform/api/oci"
 	"github.com/coreos/mantle/storage"
 	"github.com/coreos/mantle/storage/index"
 )
@@ -48,6 +50,7 @@ var (
 func init() {
 	cmdRelease.Flags().StringVar(&awsCredentialsFile, "aws-credentials", "", "AWS credentials file")
 	cmdRelease.Flags().StringVar(&azureProfile, "azure-profile", "", "Azure Profile json file")
+	cmdRelease.Flags().StringVar(&ociCredentialsFile, "oci-credentials", "", "OCI credentials file")
 	cmdRelease.Flags().BoolVarP(&releaseDryRun, "dry-run", "n", false,
 		"perform a trial run, do not make changes")
 	AddSpecFlags(cmdRelease.Flags())
@@ -90,6 +93,9 @@ func runRelease(cmd *cobra.Command, args []string) {
 
 	// Make AWS images public.
 	doAWS(ctx, client, src, &spec)
+
+	// Make OCI images public.
+	doOCI(ctx, client, src, &spec)
 
 	for _, dSpec := range spec.Destinations {
 		dst, err := storage.NewBucket(client, dSpec.BaseURL)
@@ -407,5 +413,45 @@ func doAWS(ctx context.Context, client *http.Client, src *storage.Bucket, spec *
 			}
 			publish(imageName + "-hvm")
 		}
+	}
+}
+
+func doOCI(ctx context.Context, client *http.Client, src *storage.Bucket, spec *channelSpec) {
+	if spec.OCI.Image == "" {
+		plog.Notice("OCI image creation disabled.")
+		return
+	}
+
+	imageName := fmt.Sprintf("%v-%v-%v.qcow", spec.OCI.BaseName, specChannel, specVersion)
+	imageName = regexp.MustCompile(`[^A-Za-z0-9()\\./_-]`).ReplaceAllLiteralString(imageName, "_")
+
+	if releaseDryRun {
+		plog.Print("Checking for images...")
+	} else {
+		plog.Printf("Publishing images...")
+	}
+
+	api, err := oci.New(&oci.Options{
+		ConfigPath: ociCredentialsFile,
+		Region:     spec.OCI.BucketRegion,
+	})
+	if err != nil {
+		plog.Fatalf("creating client: %v", err)
+	}
+
+	imagePath, err := getImageFile(client, src, spec.OCI.Image)
+	if err != nil {
+		plog.Fatalf("retrieving image: %v", err)
+	}
+
+	f, err := os.Open(imagePath)
+	if err != nil {
+		plog.Fatalf("opening image: %v", err)
+	}
+	defer f.Close()
+
+	err = api.UploadObject(f, spec.OCI.Bucket, imageName, false)
+	if err != nil {
+		plog.Fatalf("uploading image: %v", err)
 	}
 }

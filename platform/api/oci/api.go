@@ -16,13 +16,25 @@ package oci
 
 import (
 	"fmt"
+	"io/ioutil"
 	"time"
 
-	"github.com/oracle/bmcs-go-sdk"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/coreos/pkg/capnslog"
+	"github.com/oracle/oci-go-sdk/common"
+	"github.com/oracle/oci-go-sdk/core"
+	"github.com/oracle/oci-go-sdk/identity"
+	"github.com/oracle/oci-go-sdk/objectstorage"
 
 	"github.com/coreos/mantle/auth"
 	"github.com/coreos/mantle/platform"
 )
+
+var plog = capnslog.NewPackageLogger("github.com/coreos/mantle", "platform/api/oci")
 
 type Options struct {
 	*platform.Options
@@ -34,12 +46,16 @@ type Options struct {
 	UserID             string
 	Fingerprint        string
 	KeyFile            string
-	PrivateKeyPassword string
+	PrivateKeyPassword *string
 	Region             string
 
 	CompartmentID string
 	Image         string
 	Shape         string
+
+	// used by the s3compat objectstorage api for multipart uploads
+	SecretKey string
+	AccessKey string
 }
 
 type Machine struct {
@@ -50,8 +66,13 @@ type Machine struct {
 }
 
 type API struct {
-	client *baremetal.Client
-	opts   *Options
+	config   common.ConfigurationProvider
+	compute  core.ComputeClient
+	identity identity.IdentityClient
+	os       objectstorage.ObjectStorageClient
+	vn       core.VirtualNetworkClient
+	s3       *s3.S3
+	opts     *Options
 }
 
 func New(opts *Options) (*API, error) {
@@ -81,7 +102,7 @@ func New(opts *Options) (*API, error) {
 	if opts.KeyFile == "" {
 		opts.KeyFile = profile.KeyFile
 	}
-	if opts.PrivateKeyPassword == "" {
+	if opts.PrivateKeyPassword == nil {
 		opts.PrivateKeyPassword = profile.PrivateKeyPassword
 	}
 	if opts.Region == "" {
@@ -91,26 +112,78 @@ func New(opts *Options) (*API, error) {
 		opts.CompartmentID = profile.CompartmentID
 	}
 
-	extraOpts := []baremetal.NewClientOptionsFunc{}
-	extraOpts = append(extraOpts, baremetal.PrivateKeyFilePath(opts.KeyFile))
-
-	if opts.Region != "" {
-		extraOpts = append(extraOpts, baremetal.Region(opts.Region))
+	if opts.SecretKey == "" {
+		opts.SecretKey = profile.SecretKey
 	}
 
-	if opts.PrivateKeyPassword != "" {
-		extraOpts = append(extraOpts, baremetal.PrivateKeyPassword(opts.PrivateKeyPassword))
+	if opts.AccessKey == "" {
+		opts.AccessKey = profile.AccessKey
 	}
 
-	client, err := baremetal.NewClient(opts.UserID, opts.TenancyID, opts.Fingerprint, extraOpts...)
+	privateKey, err := ioutil.ReadFile(opts.KeyFile)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading RSA private key: %v", err)
 	}
 
-	return &API{
-		client: client,
-		opts:   opts,
-	}, nil
+	config := common.NewRawConfigurationProvider(opts.TenancyID, opts.UserID, opts.Region, opts.Fingerprint, string(privateKey), opts.PrivateKeyPassword)
+
+	computeClient, err := core.NewComputeClientWithConfigurationProvider(config)
+	if err != nil {
+		return nil, fmt.Errorf("creating compute client: %v", err)
+	}
+
+	objectClient, err := objectstorage.NewObjectStorageClientWithConfigurationProvider(config)
+	if err != nil {
+		return nil, fmt.Errorf("creating objectstorage client: %v", err)
+	}
+
+	vnClient, err := core.NewVirtualNetworkClientWithConfigurationProvider(config)
+	if err != nil {
+		return nil, fmt.Errorf("creating virtual network client: %v", err)
+	}
+
+	idClient, err := identity.NewIdentityClientWithConfigurationProvider(config)
+	if err != nil {
+		return nil, fmt.Errorf("creating identity client: %v", err)
+	}
+
+	api := &API{
+		config:   config,
+		compute:  computeClient,
+		identity: idClient,
+		os:       objectClient,
+		vn:       vnClient,
+		opts:     opts,
+	}
+
+	if opts.SecretKey != "" && opts.AccessKey != "" {
+		namespace, err := api.GetNamespace()
+		if err != nil {
+			return nil, err
+		}
+
+		customResolver := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
+			if service == endpoints.S3ServiceID {
+				return endpoints.ResolvedEndpoint{
+					URL:           fmt.Sprintf("https://%s.compat.objectstorage.%s.oraclecloud.com", namespace, opts.Region),
+					SigningRegion: opts.Region,
+				}, nil
+			}
+
+			return endpoints.DefaultResolver().EndpointFor(service, region, optFns...)
+		}
+
+		sess := session.Must(session.NewSession(&aws.Config{
+			Region:           aws.String("us-west-2"),
+			EndpointResolver: endpoints.ResolverFunc(customResolver),
+			Credentials:      credentials.NewStaticCredentials(opts.AccessKey, opts.SecretKey, ""),
+			S3ForcePathStyle: boolToPtr(true),
+		}))
+
+		api.s3 = s3.New(sess)
+	}
+
+	return api, nil
 }
 
 func (a *API) GC(gracePeriod time.Duration) error {
@@ -119,4 +192,12 @@ func (a *API) GC(gracePeriod time.Duration) error {
 
 func boolToPtr(b bool) *bool {
 	return &b
+}
+
+func strToPtr(s string) *string {
+	return &s
+}
+
+func intToPtr(i int) *int {
+	return &i
 }

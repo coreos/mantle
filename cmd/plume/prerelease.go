@@ -65,6 +65,7 @@ var (
 	selectedPlatforms  []string
 	azureProfile       string
 	awsCredentialsFile string
+	ociCredentialsFile string
 	verifyKeyFile      string
 	imageInfoFile      string
 )

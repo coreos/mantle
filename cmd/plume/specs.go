@@ -82,6 +82,13 @@ type awsSpec struct {
 	Partitions      []awsPartitionSpec // AWS partitions
 }
 
+type ociSpec struct {
+	BaseName     string
+	Bucket       string
+	BucketRegion string
+	Image        string
+}
+
 type channelSpec struct {
 	BaseURL      string // Copy from $BaseURL/$Board/$Version
 	Boards       []string
@@ -89,6 +96,7 @@ type channelSpec struct {
 	GCE          gceSpec
 	Azure        azureSpec
 	AWS          awsSpec
+	OCI          ociSpec
 }
 
 var (
@@ -98,6 +106,7 @@ var (
 	gceBoards         = []string{"amd64-usr"}
 	azureBoards       = []string{"amd64-usr"}
 	awsBoards         = []string{"amd64-usr"}
+	ociBoards         = []string{"amd64-usr"}
 	azureEnvironments = []azureEnvironmentSpec{
 		azureEnvironmentSpec{
 			SubscriptionName:     "BizSpark",
@@ -208,6 +217,12 @@ var (
 					},
 				},
 			},
+			OCI: ociSpec{
+				BaseName:     "Container-Linux",
+				Bucket:       "image-upload",
+				BucketRegion: "us-phoenix-1",
+				Image:        "coreos_production_oracle_oci_qcow_image.img.bz2",
+			},
 		},
 		"developer": channelSpec{
 			BaseURL: "gs://builds.developer.core-os.net/boards",
@@ -236,6 +251,12 @@ var (
 						},
 					},
 				},
+			},
+			OCI: ociSpec{
+				BaseName:     "Container-Linux",
+				Bucket:       "image-upload",
+				BucketRegion: "us-phoenix-1",
+				Image:        "coreos_production_oracle_oci_qcow_image.img.bz2",
 			},
 		},
 		"alpha": channelSpec{
@@ -293,6 +314,12 @@ var (
 				Prefix:          "coreos_production_ami_",
 				Image:           "coreos_production_ami_vmdk_image.vmdk.bz2",
 				Partitions:      awsPartitions,
+			},
+			OCI: ociSpec{
+				BaseName:     "Container-Linux",
+				Bucket:       "CoreOS_Drop",
+				BucketRegion: "us-phoenix-1",
+				Image:        "coreos_production_oracle_oci_qcow_image.img.bz2",
 			},
 		},
 		"beta": channelSpec{
@@ -468,6 +495,17 @@ func ChannelSpec() channelSpec {
 	}
 	if !awsOk {
 		spec.AWS = awsSpec{}
+	}
+
+	ociOk := false
+	for _, board := range ociBoards {
+		if specBoard == board {
+			ociOk = true
+			break
+		}
+	}
+	if !ociOk {
+		spec.OCI = ociSpec{}
 	}
 
 	return spec

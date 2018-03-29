@@ -32,15 +32,17 @@ const OCIConfigPath = ".oci/config"
 
 // OCIProfile represents a parsed OCI profile.
 type OCIProfile struct {
-	TenancyID          string `ini:"tenancy"`
-	UserID             string `ini:"user"`
-	Fingerprint        string `ini:"fingerprint"`
-	KeyFile            string `ini:"key_file"`
-	PrivateKeyPassword string `ini:"pass_phrase"`
-	Region             string `ini:"region"`
+	TenancyID          string  `ini:"tenancy"`
+	UserID             string  `ini:"user"`
+	Fingerprint        string  `ini:"fingerprint"`
+	KeyFile            string  `ini:"key_file"`
+	PrivateKeyPassword *string `ini:"pass_phrase"`
+	Region             string  `ini:"region"`
 
 	// Non-Standard Keys
 	CompartmentID string `ini:"compartment"`
+	SecretKey     string `ini:"secret_key"`
+	AccessKey     string `ini:"access_key"`
 }
 
 // ReadOCIConfig builds an OCIProfile from the OCIConfig files.
