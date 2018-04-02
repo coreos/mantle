@@ -15,30 +15,40 @@
 package oci
 
 import (
+	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 
-	"github.com/oracle/bmcs-go-sdk"
+	"github.com/oracle/oci-go-sdk/objectstorage"
 )
 
-func (a *API) UploadImage(bucketName, name, filePath string) (*baremetal.Object, error) {
-	namespace, err := a.client.GetNamespace()
+func (a *API) UploadImage(bucketName, name, filePath string) (objectstorage.PutObjectResponse, error) {
+	namespace, err := a.os.GetNamespace(context.Background(), objectstorage.GetNamespaceRequest{})
 	if err != nil {
-		return nil, err
+		return objectstorage.PutObjectResponse{}, err
 	}
-	if namespace == nil {
-		return nil, fmt.Errorf("namespace was nil")
+	if namespace.Value == nil {
+		return objectstorage.PutObjectResponse{}, fmt.Errorf("received namespace nil")
 	}
 
-	data, err := ioutil.ReadFile(filePath)
+	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, err
+		return objectstorage.PutObjectResponse{}, err
 	}
+	defer file.Close()
 
-	// have to manually set the Content-Type of the file
-	// or it will default to application/json
-	opts := baremetal.PutObjectOptions{
-		ContentType: "application/octet-stream",
+	fi, err := file.Stat()
+	if err != nil {
+		return objectstorage.PutObjectResponse{}, err
 	}
-	return a.client.PutObject(*namespace, bucketName, name, data, &opts)
+	size := int(fi.Size())
+
+	return a.os.PutObject(context.Background(), objectstorage.PutObjectRequest{
+		NamespaceName: namespace.Value,
+		BucketName:    &bucketName,
+		ObjectName:    &name,
+		ContentLength: &size,
+		PutObjectBody: file,
+		ContentType:   strToPtr("application/octet-stream"),
+	})
 }

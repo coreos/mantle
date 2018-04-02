@@ -1,5 +1,5 @@
-hash: d7c26224e97d03fbba50efe1beebc5a1dd863041e0d1ae6a6992b0d543bf50ef
-updated: 2018-01-22T13:35:50.083268783-08:00
+hash: fe012635bcde828599ae5d252f87141b03accba04c05eb9d449b411baaf3d8af
+updated: 2018-03-12T09:33:04.144304894-07:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -225,6 +225,13 @@ imports:
   - vhdcore/validator
   - vhdcore/vhdfile
   - vhdcore/writer
+- name: github.com/oracle/oci-go-sdk
+  version: 8090aeb474ad994446b2db294725e3d6c0d95327
+  subpackages:
+  - common
+  - core
+  - identity
+  - objectstorage
 - name: github.com/packethost/packngo
   version: 8ff1de745a8a4fdc5323ffd9ac2bc55195ff671e
 - name: github.com/pin/tftp

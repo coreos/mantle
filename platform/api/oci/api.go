@@ -16,9 +16,13 @@ package oci
 
 import (
 	"fmt"
+	"io/ioutil"
 	"time"
 
-	"github.com/oracle/bmcs-go-sdk"
+	"github.com/oracle/oci-go-sdk/common"
+	"github.com/oracle/oci-go-sdk/core"
+	"github.com/oracle/oci-go-sdk/identity"
+	"github.com/oracle/oci-go-sdk/objectstorage"
 
 	"github.com/coreos/mantle/auth"
 	"github.com/coreos/mantle/platform"
@@ -34,7 +38,7 @@ type Options struct {
 	UserID             string
 	Fingerprint        string
 	KeyFile            string
-	PrivateKeyPassword string
+	PrivateKeyPassword *string
 	Region             string
 
 	CompartmentID string
@@ -50,8 +54,12 @@ type Machine struct {
 }
 
 type API struct {
-	client *baremetal.Client
-	opts   *Options
+	config   common.ConfigurationProvider
+	compute  core.ComputeClient
+	identity identity.IdentityClient
+	os       objectstorage.ObjectStorageClient
+	vn       core.VirtualNetworkClient
+	opts     *Options
 }
 
 func New(opts *Options) (*API, error) {
@@ -81,7 +89,7 @@ func New(opts *Options) (*API, error) {
 	if opts.KeyFile == "" {
 		opts.KeyFile = profile.KeyFile
 	}
-	if opts.PrivateKeyPassword == "" {
+	if opts.PrivateKeyPassword == nil {
 		opts.PrivateKeyPassword = profile.PrivateKeyPassword
 	}
 	if opts.Region == "" {
@@ -91,25 +99,40 @@ func New(opts *Options) (*API, error) {
 		opts.CompartmentID = profile.CompartmentID
 	}
 
-	extraOpts := []baremetal.NewClientOptionsFunc{}
-	extraOpts = append(extraOpts, baremetal.PrivateKeyFilePath(opts.KeyFile))
-
-	if opts.Region != "" {
-		extraOpts = append(extraOpts, baremetal.Region(opts.Region))
-	}
-
-	if opts.PrivateKeyPassword != "" {
-		extraOpts = append(extraOpts, baremetal.PrivateKeyPassword(opts.PrivateKeyPassword))
-	}
-
-	client, err := baremetal.NewClient(opts.UserID, opts.TenancyID, opts.Fingerprint, extraOpts...)
+	privateKey, err := ioutil.ReadFile(opts.KeyFile)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading RSA private key: %v", err)
+	}
+
+	config := common.NewRawConfigurationProvider(opts.TenancyID, opts.UserID, opts.Region, opts.Fingerprint, string(privateKey), opts.PrivateKeyPassword)
+
+	computeClient, err := core.NewComputeClientWithConfigurationProvider(config)
+	if err != nil {
+		return nil, fmt.Errorf("creating compute client: %v", err)
+	}
+
+	objectClient, err := objectstorage.NewObjectStorageClientWithConfigurationProvider(config)
+	if err != nil {
+		return nil, fmt.Errorf("creating objectstorage client: %v", err)
+	}
+
+	vnClient, err := core.NewVirtualNetworkClientWithConfigurationProvider(config)
+	if err != nil {
+		return nil, fmt.Errorf("creating virtual network client: %v", err)
+	}
+
+	idClient, err := identity.NewIdentityClientWithConfigurationProvider(config)
+	if err != nil {
+		return nil, fmt.Errorf("creating identity client: %v", err)
 	}
 
 	return &API{
-		client: client,
-		opts:   opts,
+		config:   config,
+		compute:  computeClient,
+		identity: idClient,
+		os:       objectClient,
+		vn:       vnClient,
+		opts:     opts,
 	}, nil
 }
 
@@ -119,4 +142,12 @@ func (a *API) GC(gracePeriod time.Duration) error {
 
 func boolToPtr(b bool) *bool {
 	return &b
+}
+
+func strToPtr(s string) *string {
+	return &s
+}
+
+func intToPtr(i int) *int {
+	return &i
 }
