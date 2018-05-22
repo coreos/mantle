@@ -631,6 +631,10 @@ func (a *API) findAndDedupeImage(name string) (string, error) {
 			ImageId: aws.String(ids[i]),
 		})
 		if err != nil {
+			if awserr, ok := err.(awserr.Error); ok && awserr.Code() == "InvalidAMIID.Unavailable" {
+				// This error happens if the image is already deregistered
+				continue
+			}
 			return "", fmt.Errorf("error trying to cleanup dupe images named %q (%v): %v", name, ids, err)
 		}
 	}
