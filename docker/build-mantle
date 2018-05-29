@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+
+set -e
+
+: ${TOP_DIR:="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"}
+
+source ${TOP_DIR}/docker/builder-include
+
+: ${CC:="gcc"}
+: ${GOARCH:="$(goarch)"}
+: ${NO_CROSS:=""}
+
+usage () {
+	echo "$(basename $0) - Builds mantle programs using a ${DOCKER_TAG} container." >&2
+	echo "Usage: $(basename $0) [flags] [--] [build_args]" >&2
+	echo "Option flags:" >&2
+	echo "  -a --arm64    - Build with common arm64 cross compile args." >&2
+	echo "  -d --dry-run  - Do not run docker commands." >&2
+	echo "  -h --help     - Show this help and exit." >&2
+	echo "  -r --verify   - Run golang tests after build." >&2
+	echo "  -t --test     - Run golang tests." >&2
+	echo "  -v --verbose  - Verbose execution." >&2
+	echo "Environment:" >&2
+	echo "  CC            - Default: '${CC}'" >&2
+	echo "  GOARCH        - Default: '${GOARCH}'" >&2
+	echo "  NO_CROSS      - Default: '${NO_CROSS}'" >&2
+	echo "  DOCKER_TAG    - Default: '${DOCKER_TAG}'" >&2
+	echo "Examples:" >&2
+	echo "  $(basename $0) -vt"
+	echo "  $(basename $0) -v -- cork"
+	echo "  CC=aarch64-linux-gnu-gcc GOARCH=arm64 NO_CROSS=1 $(basename $0)"
+}
+
+short_opts="adhrtv"
+long_opts="arm64,dry-run,help,verify,test,verbose"
+
+opts=$(getopt --options ${short_opts} --long ${long_opts} -n "${name}" -- "$@")
+
+if [ $? != 0 ]; then
+	echo "${name}: Terminating..." >&2 
+	exit 1
+fi
+
+eval set -- "${opts}"
+
+while true ; do
+	case "${1}" in
+	-a | --arm64)
+		CC="aarch64-linux-gnu-gcc"
+		GOARCH="arm64"
+		NO_CROSS="1"
+		shift
+		;;
+	-d | --dry-run)
+		dry_run="--dry-run"
+		shift
+		;;
+	-h | --help)
+		usage
+		exit 0
+		;;
+	-r | --verify)
+		verify=1
+		shift
+		;;
+	-t | --test)
+		test=1
+		shift
+		;;
+	-v | --verbose)
+		set -x
+		verbose=1
+		bash_debug="bash -x"
+		test_extra="-v"
+		shift
+		;;
+	--)
+		shift
+		build_args=${*}
+		break
+		;;
+	*)
+		build_args="${build_args} ${1}"
+		shift
+		;;
+	esac
+done
+
+docker_args="--rm \
+	-e CC=${CC}
+	-e GOARCH=${GOARCH} \
+	-e GOCACHE=/tmp/gocache \
+	-e NO_CROSS=${NO_CROSS} \
+	-u $(id -u):$(id -g) \
+	-v /etc/group:/etc/group:ro \
+	-v /etc/passwd:/etc/passwd:ro \
+	-v ${TOP_DIR}:/opt/mantle \
+	-w /opt/mantle \
+"
+
+# Need this for linkat to work in container.
+docker_test_args="-v /tmp:/tmp:rw"
+
+cd ${TOP_DIR}
+
+[[ -z ${dry_run} ]] || exit 0
+
+if [[ -z "${test}" ]]; then
+	docker run ${docker_args} ${DOCKER_TAG} ${bash_debug} ./build ${build_args}
+fi
+
+if [[ -n "${test}" || -n "${verify}" ]]; then
+	docker run ${docker_args} ${docker_test_args} ${DOCKER_TAG} ${bash_debug} ./test ${test_extra}
+fi

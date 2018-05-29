@@ -1,0 +1,15 @@
+# Image for running mantle programs.
+
+FROM arm64v8/ubuntu:17.10
+
+RUN apt-get update && apt-get install -y \
+	apt-utils \
+	qemu-system-arm \
+	dnsmasq \
+	&& rm -rf /var/lib/apt/lists/*
+
+COPY ./bin /usr/lib/kola/
+
+ENV PATH /usr/lib/kola:${PATH}
+
+CMD /bin/bash

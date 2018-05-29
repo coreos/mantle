@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+goarch() {
+	local m="$(uname -m)"
+
+	case "${m}" in
+		aarch64) echo "arm64" ;;
+		x86_64)  echo "amd64" ;;
+		*)       echo "${m}" ;;
+	esac
+}
+
+arch_tag() {
+	local a="$(goarch)"
+
+	case "${a}" in
+		amd64) echo "" ;;
+		*)     echo "-${a}" ;;
+	esac
+}
+
+: ${VERSION:="3"}
+: ${ARCH_TAG:="$(arch_tag)"}
+: ${DOCKER_NAME:="mantle-builder"}
+: ${DOCKER_TAG:="${DOCKER_NAME}:${VERSION}${ARCH_TAG}"}
+
+show_tag () {
+	echo "${DOCKER_TAG}"
+}
