@@ -220,6 +220,8 @@ func dockerBaseTests(c cluster.TestCluster) {
 	c.Run("resources", dockerResources)
 	c.Run("networks-reliably", dockerNetworksReliably)
 	c.Run("user-no-caps", dockerUserNoCaps)
+	c.Run("sel-restricted", dockerSelRestricted)
+	c.Run("sel-readonly", dockerSelReadOnly)
 }
 
 // using a simple container, exercise various docker options that set resource
@@ -468,6 +470,43 @@ func dockerUserNoCaps(c cluster.TestCluster) {
 	// Finally, check for fail/success on reading /root
 	if !strings.HasPrefix(outputlines[len(outputlines)-1], "PASS: ") {
 		c.Fatalf("reading /root test failed: %q", string(output))
+	}
+}
+
+// Ensure that when SELinux is enforcing the docker daemon cannot create a
+// container instance with a mount to a restricted directory.
+func dockerSelRestricted(c cluster.TestCluster) {
+	m := c.Machines()[0]
+
+	genDockerContainer(c, m, "permtest", []string{"ls"})
+
+	_, stderr, _ := m.SSH("sudo setenforce 1 && docker run -v /root:/root permtest sh -c 'ls -dlZ /root'")
+
+	if !(strings.Contains(string(stderr), "OCI runtime create failed") &&
+		strings.Contains(string(stderr), "permission denied")) {
+		c.Fatalf("failed creating contanier with restricted directory: %q", string(stderr))
+	}
+}
+
+// Ensure that when SELinux is enforcing the docker daemon cannot create a
+// container instance with a read-write mount to a read-only directory.
+func dockerSelReadOnly(c cluster.TestCluster) {
+	m := c.Machines()[0]
+
+	genDockerContainer(c, m, "writetest", []string{"echo"})
+
+	// Test ro mount as baseline, should succeed.
+	_, stderr, err := m.SSH("sudo setenforce 1 && docker run -v /etc/passwd:/etc/passwd:ro writetest sh -c 'echo badguy >> /etc/passwd'")
+	if err != nil {
+		c.Fatalf("failed creating contanier with read-only mount: %s, %v", stderr, err)
+	}
+
+	// Now test rw mount.
+	_, stderr, _ = m.SSH("sudo setenforce 1 && docker run -v /etc/passwd:/etc/passwd:rw writetest sh -c 'echo badguy >> /etc/passwd'")
+
+	if !(strings.Contains(string(stderr), "OCI runtime create failed") &&
+		strings.Contains(string(stderr), "permission denied")) {
+		c.Fatalf("failed creating contanier with read-only directory: %q", string(stderr))
 	}
 }
 
