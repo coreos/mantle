@@ -435,6 +435,11 @@ func dockerUserNoCaps(c cluster.TestCluster) {
 
 	genDockerContainer(c, m, "captest", []string{"capsh", "sh", "grep", "cat", "ls"})
 
+	// With the current SELinux policy the docker daemon does not have
+	// access to the '/root' directory.  Set SELinux to permisive mode
+	// so this test can run.
+	c.MustSSH(m, "sudo setenforce 0")
+
 	output := c.MustSSH(m, `docker run --user 1000:1000 \
 		-v /root:/root \
 		captest sh -c \
