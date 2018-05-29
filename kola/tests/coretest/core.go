@@ -191,7 +191,19 @@ func TestNTPDate() error {
 
 // This execs gdbus, because we need to change uses to test perms.
 func TestDbusPerms() error {
+	// With the current SELinux policy the core user does not have access
+	// to the systemd RestartUnit method.  Set SELinux to permisive
+	// mode so this test can run.
 	c := exec.Command(
+		"sudo", "setenforce", "0",
+	)
+	out, err := c.CombinedOutput()
+
+	if err != nil {
+		return fmt.Errorf("setenforce faied: Err:%s\n Out:%s", err, string(out))
+	}
+
+	c = exec.Command(
 		"sudo", "-u", "core",
 		"gdbus", "call", "--system",
 		"--dest", "org.freedesktop.systemd1",
@@ -199,12 +211,11 @@ func TestDbusPerms() error {
 		"--method", "org.freedesktop.systemd1.Manager.RestartUnit",
 		"ntpd.service", "replace",
 	)
-	out, err := c.CombinedOutput()
+	out, err = c.CombinedOutput()
 
 	if err != nil {
-		if !strings.Contains(string(out), "org.freedesktop.DBus.Error.AccessDenied") &&
-			!strings.Contains(string(out), "org.freedesktop.DBus.Error.InteractiveAuthorizationRequired") {
-			return err
+		if !strings.Contains(string(out), "org.freedesktop.DBus.Error.InteractiveAuthorizationRequired") {
+			return fmt.Errorf("RestartUnit failed: Err:%s\n Out:%s", err, string(out))
 		}
 	} else {
 		return fmt.Errorf("We were able to call RestartUnit as a non-root user.")
@@ -221,7 +232,7 @@ func TestDbusPerms() error {
 
 	out, err = c.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("Err:%s\n Out:%v", err, out)
+		return fmt.Errorf("GetAll failed: Err:%s\n Out:%s", err, string(out))
 	}
 	return nil
 }
