@@ -17,6 +17,7 @@ package aws
 import (
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -58,9 +59,20 @@ func (a *API) CreateInstances(name, keyname, userdata string, count uint64) ([]*
 		return nil, fmt.Errorf("error verifying IAM instance profile: %v", err)
 	}
 
-	sgId, err := a.getSecurityGroupID(a.opts.SecurityGroup)
+	sgId := a.opts.SecurityGroup
+	if !strings.HasPrefix(sgId, "sg-") {
+		sgId, err = a.getSecurityGroupID(a.opts.SecurityGroup)
+		if err != nil {
+			return nil, fmt.Errorf("error resolving security group: %v", err)
+		}
+	}
+	vpcId, err := a.getVPCID(sgId)
 	if err != nil {
-		return nil, fmt.Errorf("error resolving security group: %v", err)
+		return nil, fmt.Errorf("error resolving vpc: %v", err)
+	}
+	subnetId, err := a.getSubnetID(vpcId)
+	if err != nil {
+		return nil, fmt.Errorf("error resolving subnet: %v", err)
 	}
 	key := &keyname
 	if keyname == "" {
@@ -77,6 +89,7 @@ func (a *API) CreateInstances(name, keyname, userdata string, count uint64) ([]*
 		IamInstanceProfile: &ec2.IamInstanceProfileSpecification{
 			Name: &a.opts.IAMInstanceProfile,
 		},
+		SubnetId: &subnetId,
 		TagSpecifications: []*ec2.TagSpecification{
 			&ec2.TagSpecification{
 				ResourceType: aws.String(ec2.ResourceTypeInstance),
@@ -253,6 +266,41 @@ func (a *API) getSecurityGroupID(name string) (string, error) {
 		return "", fmt.Errorf("zero security groups matched name %v", name)
 	}
 	return *sgIds.SecurityGroups[0].GroupId, nil
+}
+
+// getVPCID gets a VPC for the given security group
+func (a *API) getVPCID(sgId string) (string, error) {
+	sgs, err := a.ec2.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+		GroupIds: []*string{&sgId},
+	})
+	for _, sg := range sgs.SecurityGroups {
+		if sg.VpcId != nil {
+			return *sg.VpcId, nil
+		}
+	}
+	return "", fmt.Errorf("no vpc found for security group %v: %v", sgId, err)
+}
+
+// getSubnetID gets a subnet for the given VPC.
+func (a *API) getSubnetID(vpc string) (string, error) {
+	subIds, err := a.ec2.DescribeSubnets(&ec2.DescribeSubnetsInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("vpc-id"),
+				Values: []*string{&vpc},
+			},
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("unable to get subnets for vpc %v: %v", vpc, err)
+	}
+	for _, id := range subIds.Subnets {
+		if id.SubnetId != nil {
+			return *id.SubnetId, nil
+		}
+	}
+	return "", fmt.Errorf("no subnets found for vpc %v: %v", vpc, err)
+
 }
 
 // createSecurityGroup creates a security group with tcp/22 access allowed from the
