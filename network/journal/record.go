@@ -41,7 +41,7 @@ func NewRecorder(f Formatter, rawFile io.WriteCloser) *Recorder {
 }
 
 func (r *Recorder) journalctl() []string {
-	cmd := []string{"journalctl",
+	cmd := []string{"sudo", "journalctl",
 		"--output=export", "--follow", "--lines=all"}
 	if r.cursor == "" {
 		cmd = append(cmd, "--boot")
