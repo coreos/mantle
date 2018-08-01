@@ -227,6 +227,8 @@ func dockerBaseTests(c cluster.TestCluster) {
 	c.Run("resources", dockerResources)
 	c.Run("networks-reliably", dockerNetworksReliably)
 	c.Run("user-no-caps", dockerUserNoCaps)
+	c.Run("sel-restricted", dockerSelRestricted)
+	c.Run("sel-readonly", dockerSelReadOnly)
 }
 
 // using a simple container, exercise various docker options that set resource
@@ -388,7 +390,13 @@ func dockerUserns(c cluster.TestCluster) {
 
 	genDockerContainer(c, m, "userns-test", []string{"echo", "sleep"})
 
-	c.MustSSH(m, `sudo setenforce 1`)
+	// A docker bug causes the docker daemon to fail in creating a container
+	// when the '--userns-remap' option is used and SELinux is enforcing.
+	// Set SELinux to permisive mode so this test can run.
+	// See: https://github.com/opencontainers/runc/pull/1562 (nsenter:
+	// improve namespace creation and SELinux IPC handling).
+	c.MustSSH(m, "sudo setenforce 0")
+
 	output := c.MustSSH(m, `docker run userns-test echo fj.fj`)
 	if !bytes.Equal(output, []byte("fj.fj")) {
 		c.Fatalf("expected fj.fj, got %s", string(output))
@@ -442,6 +450,11 @@ func dockerUserNoCaps(c cluster.TestCluster) {
 
 	genDockerContainer(c, m, "captest", []string{"capsh", "sh", "grep", "cat", "ls"})
 
+	// With the current SELinux policy the docker daemon does not have
+	// access to the '/root' directory.  Set SELinux to permisive mode
+	// so this test can run.
+	c.MustSSH(m, "sudo setenforce 0")
+
 	output := c.MustSSH(m, `docker run --user 1000:1000 \
 		-v /root:/root \
 		captest sh -c \
@@ -464,6 +477,43 @@ func dockerUserNoCaps(c cluster.TestCluster) {
 	// Finally, check for fail/success on reading /root
 	if !strings.HasPrefix(outputlines[len(outputlines)-1], "PASS: ") {
 		c.Fatalf("reading /root test failed: %q", string(output))
+	}
+}
+
+// Ensure that when SELinux is enforcing the docker daemon cannot create a
+// container instance with a mount to a restricted directory.
+func dockerSelRestricted(c cluster.TestCluster) {
+	m := c.Machines()[0]
+
+	genDockerContainer(c, m, "permtest", []string{"ls"})
+
+	_, stderr, _ := m.SSH("sudo setenforce 1 && docker run -v /root:/root permtest sh -c 'ls -dlZ /root'")
+
+	if !(strings.Contains(string(stderr), "OCI runtime create failed") &&
+		strings.Contains(string(stderr), "permission denied")) {
+		c.Fatalf("failed creating contanier with restricted directory: %q", string(stderr))
+	}
+}
+
+// Ensure that when SELinux is enforcing the docker daemon cannot create a
+// container instance with a read-write mount to a read-only directory.
+func dockerSelReadOnly(c cluster.TestCluster) {
+	m := c.Machines()[0]
+
+	genDockerContainer(c, m, "writetest", []string{"echo"})
+
+	// Test ro mount as baseline, should succeed.
+	_, stderr, err := m.SSH("sudo setenforce 1 && docker run -v /etc/passwd:/etc/passwd:ro writetest sh -c 'echo badguy >> /etc/passwd'")
+	if err != nil {
+		c.Fatalf("failed creating contanier with read-only mount: %s, %v", stderr, err)
+	}
+
+	// Now test rw mount.
+	_, stderr, _ = m.SSH("sudo setenforce 1 && docker run -v /etc/passwd:/etc/passwd:rw writetest sh -c 'echo badguy >> /etc/passwd'")
+
+	if !(strings.Contains(string(stderr), "OCI runtime create failed") &&
+		strings.Contains(string(stderr), "permission denied")) {
+		c.Fatalf("failed creating contanier with read-only directory: %q", string(stderr))
 	}
 }
 

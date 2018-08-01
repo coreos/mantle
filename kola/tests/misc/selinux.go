@@ -17,9 +17,16 @@ package misc
 import (
 	"github.com/coreos/mantle/kola/cluster"
 	"github.com/coreos/mantle/kola/register"
+	"strings"
 )
 
 func init() {
+	register.Register(&register.Test{
+		Run:         SelinuxLogCheck,
+		ClusterSize: 1,
+		Name:        "coreos.selinux.logcheck",
+		Flags:       []register.Flag{register.NoEnableSelinux},
+	})
 	register.Register(&register.Test{
 		Run:         SelinuxEnforce,
 		ClusterSize: 1,
@@ -27,6 +34,25 @@ func init() {
 		Flags:       []register.Flag{register.NoEnableSelinux},
 		Distros:     []string{"cl", "rhcos"},
 	})
+}
+
+// SelinuxLogCheck checks that no audit AVC messages appear in boot logs.
+func SelinuxLogCheck(c cluster.TestCluster) {
+	m := c.Machines()[0]
+
+	cmd := "sudo journalctl -b --no-pager | egrep 'AVC avc'"
+	stdout, stderr, err := m.SSH(cmd)
+
+	if err == nil {
+		c.Fatalf("Found audit AVC messages in boot logs: \n%v", string(stdout))
+	}
+
+	if err.Error() == "Process exited with status 1" &&
+		strings.TrimSpace(string(stderr)) == "" {
+		return // OK, nothing found.
+	}
+
+	c.Fatalf("cmd '%v' failed: %v: %v.\n", string(cmd), err, string(stderr))
 }
 
 // SelinuxEnforce checks that some basic things work after `setenforce 1`
