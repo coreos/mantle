@@ -299,19 +299,9 @@ func CheckMachine(ctx context.Context, m Machine) error {
 		return fmt.Errorf("ssh unreachable: %v", err)
 	}
 
-	// ensure we're talking to a Container Linux system
-	out, stderr, err := m.SSH("grep ^ID= /etc/os-release")
-	if err != nil {
-		return fmt.Errorf("no /etc/os-release file: %v: %s", err, stderr)
-	}
-
-	if !bytes.Equal(out, []byte("ID=coreos")) && !bytes.Equal(out, []byte(`ID="rhcos"`)) {
-		return fmt.Errorf("not a supported instance")
-	}
-
 	if !m.RuntimeConf().AllowFailedUnits {
 		// ensure no systemd units failed during boot
-		out, stderr, err = m.SSH("systemctl --no-legend --state failed list-units")
+		out, stderr, err := m.SSH("systemctl --no-legend --state failed list-units")
 		if err != nil {
 			return fmt.Errorf("systemctl: %s: %v: %s", out, err, stderr)
 		}
