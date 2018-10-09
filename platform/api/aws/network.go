@@ -44,6 +44,14 @@ func (a *API) getSecurityGroupID(name string) (string, error) {
 		return "", fmt.Errorf("unable to get security group named %v: %v", name, err)
 	}
 
+	// Validates that the required networking resources are present, if not attempts to
+	// delete the Security Group, VPC, and relevant networking resources
+	if valid, err := a.validateNetworkResources(sgIds.SecurityGroups[0]); err != nil {
+		return "", err
+	} else if !valid {
+		return a.createSecurityGroup(name)
+	}
+
 	return *sgIds.SecurityGroups[0].GroupId, nil
 }
 
@@ -339,4 +347,116 @@ func (a *API) getVPCID(sgId string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("no vpc found for security group %v", sgId)
+}
+
+func (a *API) validateNetworkResources(sg *ec2.SecurityGroup) (bool, error) {
+	if sg.VpcId == nil || *sg.VpcId == "" {
+		return false, nil
+	}
+
+	vpcs, err := a.ec2.DescribeVpcs(&ec2.DescribeVpcsInput{
+		VpcIds: []*string{
+			sg.VpcId,
+		},
+	})
+	if err != nil || len(vpcs.Vpcs) < 1 {
+		return false, nil
+	}
+
+	subnets, err := a.ec2.DescribeSubnets(&ec2.DescribeSubnetsInput{
+		Filters: []*ec2.Filter{
+			{
+				Name: aws.String("vpc-id"),
+				Values: []*string{
+					sg.VpcId,
+				},
+			},
+		},
+	})
+	if err != nil || len(subnets.Subnets) < 1 {
+		// Delete the VPC to remove all networking resources used by kola
+		// as they will be recreated after this check.
+		err = a.DeleteVPC(sg.GroupId, vpcs.Vpcs[0])
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (a *API) DeleteVPC(sgId *string, vpc *ec2.Vpc) error {
+	_, err := a.ec2.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
+		GroupId: sgId,
+	})
+	if err != nil {
+		return fmt.Errorf("deleting security group: %v", err)
+	}
+
+	rts, err := a.ec2.DescribeRouteTables(&ec2.DescribeRouteTablesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name: aws.String("vpc-id"),
+				Values: []*string{
+					vpc.VpcId,
+				},
+			},
+			{
+				Name: aws.String("tag:CreatedBy"),
+				Values: []*string{
+					aws.String("mantle"),
+				},
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("retrieving route tables: %v", err)
+	}
+
+	for _, rt := range rts.RouteTables {
+		_, err = a.ec2.DeleteRouteTable(&ec2.DeleteRouteTableInput{
+			RouteTableId: rt.RouteTableId,
+		})
+		if err != nil {
+			return fmt.Errorf("deleting route table: %v", err)
+		}
+	}
+
+	igws, err := a.ec2.DescribeInternetGateways(&ec2.DescribeInternetGatewaysInput{
+		Filters: []*ec2.Filter{
+			{
+				Name: aws.String("attachment.vpc-id"),
+				Values: []*string{
+					vpc.VpcId,
+				},
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("retrieving internet gateways: %v", err)
+	}
+
+	for _, igw := range igws.InternetGateways {
+		_, err = a.ec2.DetachInternetGateway(&ec2.DetachInternetGatewayInput{
+			InternetGatewayId: igw.InternetGatewayId,
+			VpcId:             vpc.VpcId,
+		})
+		if err != nil {
+			return fmt.Errorf("detaching internet gateway: %v", err)
+		}
+
+		_, err = a.ec2.DeleteInternetGateway(&ec2.DeleteInternetGatewayInput{
+			InternetGatewayId: igw.InternetGatewayId,
+		})
+		if err != nil {
+			return fmt.Errorf("deleting internet gateway: %v", err)
+		}
+	}
+
+	_, err = a.ec2.DeleteVpc(&ec2.DeleteVpcInput{
+		VpcId: vpc.VpcId,
+	})
+	if err != nil {
+		return fmt.Errorf("deleting vpc: %v", err)
+	}
+
+	return nil
 }
