@@ -24,6 +24,7 @@ import (
 
 	"github.com/coreos/mantle/platform/api/aws"
 	"github.com/coreos/mantle/sdk"
+	"github.com/coreos/mantle/util"
 	"github.com/spf13/cobra"
 )
 
@@ -50,6 +51,8 @@ After a successful run, the final line of output will be a line of JSON describi
 	uploadImageName      string
 	uploadBoard          string
 	uploadFile           string
+	uploadSizeGiB        uint
+	uploadSizeInspect    bool
 	uploadDeleteObject   bool
 	uploadForce          bool
 	uploadSourceSnapshot string
@@ -70,6 +73,8 @@ func init() {
 	cmdUpload.Flags().StringVar(&uploadFile, "file",
 		defaultUploadFile(),
 		"path to CoreOS image (build with: ./image_to_vm.sh --format=ami_vmdk ...)")
+	cmdUpload.Flags().UintVarP(&uploadSizeGiB, "size-gib", "", 0, "Use this size in GiB")
+	cmdUpload.Flags().BoolVar(&uploadSizeInspect, "size-inspect", false, "With --file, determine size from the image")
 	cmdUpload.Flags().BoolVar(&uploadDeleteObject, "delete-object", true, "delete uploaded S3 object after snapshot is created")
 	cmdUpload.Flags().BoolVar(&uploadForce, "force", false, "overwrite existing S3 object rather than reusing")
 	cmdUpload.Flags().StringVar(&uploadSourceSnapshot, "source-snapshot", "", "the snapshot ID to base this AMI on (default: create new snapshot)")
@@ -141,6 +146,22 @@ func runUpload(cmd *cobra.Command, args []string) error {
 			os.Exit(1)
 		}
 		imageName = ver.Version
+	}
+
+	if uploadSizeInspect {
+		imageInfo, err := util.GetImageInfo(uploadFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to query size of disk: %v\n", err)
+			os.Exit(1)
+		}
+		plog.Debugf("Image size: %v\n", imageInfo.VirtualSize)
+		const GiB = 1024 * 1024 * 1024
+		quotient, remainder := imageInfo.VirtualSize/GiB, imageInfo.VirtualSize%GiB
+		// Round up if there's leftover
+		if remainder > 0 {
+			quotient = quotient + 1
+		}
+		uploadSizeGiB = uint(quotient)
 	}
 
 	amiName := uploadAMIName
@@ -225,7 +246,7 @@ func runUpload(cmd *cobra.Command, args []string) error {
 	}
 
 	// create AMIs and grant permissions
-	hvmID, err := API.CreateHVMImage(sourceSnapshot, amiName+"-hvm", uploadAMIDescription)
+	hvmID, err := API.CreateHVMImage(sourceSnapshot, amiName+"-hvm", uint32(uploadSizeGiB), uploadAMIDescription)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to create HVM image: %v\n", err)
 		os.Exit(1)
@@ -257,7 +278,7 @@ func runUpload(cmd *cobra.Command, args []string) error {
 
 	var pvID string
 	if uploadCreatePV {
-		pvImageID, err := API.CreatePVImage(sourceSnapshot, amiName, uploadAMIDescription)
+		pvImageID, err := API.CreatePVImage(sourceSnapshot, amiName, uint32(uploadSizeGiB), uploadAMIDescription)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to create PV image: %v\n", err)
 			os.Exit(1)
