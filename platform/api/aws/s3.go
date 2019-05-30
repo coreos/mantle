@@ -17,6 +17,7 @@ package aws
 import (
 	"fmt"
 	"io"
+	"net/url"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -97,4 +98,64 @@ func (a *API) InitializeBucket(bucket string) error {
 		}
 	}
 	return err
+}
+
+// This will modify the ACL on Objects to one of the canned ACL policies
+func (a *API) PutObjectAcl(bucket, path, policy string) error {
+	_, err := a.s3.PutObjectAcl(&s3.PutObjectAclInput{
+		ACL:    aws.String(policy),
+		Bucket: aws.String(bucket),
+		Key:    aws.String(path),
+	})
+	if err != nil {
+		return fmt.Errorf("setting object ACL: %v", err)
+	}
+	return nil
+}
+
+// Copy an Object to a new location with a given canned ACL policy
+func (a *API) CopyObject(srcBucket, srcPath, destBucket, destPath, policy string) error {
+	err := a.InitializeBucket(destBucket)
+	if err != nil {
+		return fmt.Errorf("creating destination bucket: %v", err)
+	}
+	_, err = a.s3.CopyObject(&s3.CopyObjectInput{
+		ACL:        aws.String(policy),
+		CopySource: aws.String(url.QueryEscape(fmt.Sprintf("%s/%s", srcBucket, srcPath))),
+		Bucket:     aws.String(destBucket),
+		Key:        aws.String(destPath),
+	})
+	if err != nil {
+		if awserr, ok := err.(awserr.Error); ok {
+			if awserr.Code() == alreadyExistsErr {
+				return nil
+			}
+		}
+	}
+	return err
+}
+
+// Copies all objects in srcBucket to destBucket with a given canned ACL policy
+func (a *API) CopyBucket(srcBucket, destBucket, policy string) error {
+	objects, err := a.s3.ListObjects(&s3.ListObjectsInput{
+		Bucket: aws.String(srcBucket),
+	})
+	if err != nil {
+		return fmt.Errorf("listing bucket: %v", err)
+	}
+
+	err = a.InitializeBucket(destBucket)
+	if err != nil {
+		return fmt.Errorf("creating destination bucket: %v", err)
+	}
+
+	for _, object := range objects.Contents {
+		path := *object.Key
+		err = a.CopyObject(srcBucket, path, destBucket, path, policy)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
