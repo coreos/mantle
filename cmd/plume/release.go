@@ -499,7 +499,7 @@ func modifyReleaseMetadataIndex(spec *fcosChannelSpec, commitId string) {
 		plog.Fatalf("creating aws client: %v", err)
 	}
 
-	path := filepath.Join("prod", "streams", specChannel, "releases.json")
+	path := filepath.Join("prod", "streams", specChannel, "release-index.json")
 
 	f, err := api.DownloadFile(spec.Bucket, path)
 	if err != nil {
