@@ -231,7 +231,7 @@ sudo emerge --ask awscli
 ```
 
 ### azure
-TBD (FIXME)
+`azure` uses `.azure/azureProfile.json`. See [the official documentation](https://docs.microsoft.com/en-us/python/azure/python-sdk-azure-authenticate?view=azure-python) for setting up your profile.
 
 ### do
 `do` uses `~/.config/digitalocean.json`. This can be configured manually:
