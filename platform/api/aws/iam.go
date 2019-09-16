@@ -59,14 +59,50 @@ const (
 // AmazonS3RReadOnlyAccess permissions policy applied to allow fetches
 // of S3 objects that are not owned by the root account.
 func (a *API) ensureInstanceProfile(name string) error {
-	_, err := a.iam.GetInstanceProfile(&iam.GetInstanceProfileInput{
+	profileExists := false
+	policy := "AmazonS3ReadOnlyAccess"
+
+	profile, err := a.iam.GetInstanceProfile(&iam.GetInstanceProfileInput{
 		InstanceProfileName: &name,
 	})
-	if err == nil {
-		return nil
-	}
-	if awserr, ok := err.(awserr.Error); !ok || awserr.Code() != "NoSuchEntity" {
+	if awsErr, ok := err.(awserr.Error); !ok || awsErr.Code() != "NoSuchEntity" {
 		return fmt.Errorf("getting instance profile %q: %v", name, err)
+	} else if err == nil {
+		profileExists = true
+		// check if a role of the same name already exists and is attached
+		// to the instance profile
+		for _, role := range profile.InstanceProfile.Roles {
+			if role.RoleName != nil && *role.RoleName == name {
+				if role.AssumeRolePolicyDocument != nil && *role.AssumeRolePolicyDocument != ec2AssumeRolePolicy {
+					// the role exists but is missing the assume role policy
+					// present this as an error to the user requiring manual intervention
+					return fmt.Errorf("role %q exists but is not configured properly, manual intervention required", name)
+				}
+				// validate that the role has the correct policy
+				_, err := a.iam.GetRolePolicy(&iam.GetRolePolicyInput{
+					PolicyName: aws.String(policy),
+					RoleName:   aws.String(name),
+				})
+				if awserr, ok := err.(awserr.Error); !ok || awserr.Code() != "NoSuchEntity" {
+					return fmt.Errorf("getting role policy: %v", err)
+				} else if awserr.Code() == "NoSuchEntity" {
+					// the role does not contain the AmazonS3ReadOnlyAccess policy
+					// attempt to add it to allow the existing instance prrofile
+					// to be re-used
+					_, err = a.iam.PutRolePolicy(&iam.PutRolePolicyInput{
+						PolicyName:     &policy,
+						PolicyDocument: aws.String(s3ReadOnlyAccess),
+						RoleName:       &name,
+					})
+					if err != nil {
+						return fmt.Errorf("adding %q policy to role %q: %v", policy, name, err)
+					}
+				}
+				// the role exists with the correct policy and is attached to the instance profile
+				// re-use the existing instance profile
+				return nil
+			}
+		}
 	}
 
 	_, err = a.iam.CreateRole(&iam.CreateRoleInput{
@@ -77,7 +113,6 @@ func (a *API) ensureInstanceProfile(name string) error {
 	if err != nil {
 		return fmt.Errorf("creating role %q: %v", name, err)
 	}
-	policy := "AmazonS3ReadOnlyAccess"
 	_, err = a.iam.PutRolePolicy(&iam.PutRolePolicyInput{
 		PolicyName:     &policy,
 		PolicyDocument: aws.String(s3ReadOnlyAccess),
@@ -87,11 +122,13 @@ func (a *API) ensureInstanceProfile(name string) error {
 		return fmt.Errorf("adding %q policy to role %q: %v", policy, name, err)
 	}
 
-	_, err = a.iam.CreateInstanceProfile(&iam.CreateInstanceProfileInput{
-		InstanceProfileName: &name,
-	})
-	if err != nil {
-		return fmt.Errorf("creating instance profile %q: %v", name, err)
+	if !profileExists {
+		_, err = a.iam.CreateInstanceProfile(&iam.CreateInstanceProfileInput{
+			InstanceProfileName: &name,
+		})
+		if err != nil {
+			return fmt.Errorf("creating instance profile %q: %v", name, err)
+		}
 	}
 
 	_, err = a.iam.AddRoleToInstanceProfile(&iam.AddRoleToInstanceProfileInput{
