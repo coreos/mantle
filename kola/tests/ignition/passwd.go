@@ -101,7 +101,6 @@ func init() {
 		               ]
 		             }
 		           }`),
-		Distros: []string{"cl", "fcos", "rhcos"},
 	})
 	register.Register(&register.Test{
 		Name:        "cl.ignition.v1.users",

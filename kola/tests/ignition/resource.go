@@ -106,7 +106,6 @@ func init() {
 		},
 		// https://github.com/coreos/bugs/issues/2205
 		ExcludePlatforms: []string{"do", "qemu-unpriv"},
-		Distros:          []string{"cl", "fcos", "rhcos"},
 	})
 	register.Register(&register.Test{
 		Name:        "coreos.ignition.resource.remote",
@@ -178,7 +177,6 @@ func init() {
 		      ]
 		  }
 	      }`),
-		Distros: []string{"cl", "fcos", "rhcos"},
 	})
 	register.Register(&register.Test{
 		Name:        "coreos.ignition.resource.s3",
@@ -228,7 +226,6 @@ func init() {
 		      ]
 		  }
 	      }`),
-		Distros: []string{"cl", "fcos", "rhcos"},
 	})
 	// TODO: once Ignition supports this on all channels/distros
 	//       this test should be rolled into coreos.ignition.resources.remote
@@ -289,7 +286,6 @@ func init() {
 		      ]
 		  }
 	      }`),
-		Distros: []string{"cl", "rhcos"},
 	})
 }
 

@@ -74,7 +74,6 @@ func init() {
 		// https://github.com/coreos/fedora-coreos-tracker/issues/121).
 		// Should probably just pick a different unit to test with, though
 		// testing the NFS workflow is useful for RHCOS/CL.
-		ExcludeDistros: []string{"fcos"},
 	})
 }
 

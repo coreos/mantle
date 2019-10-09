@@ -61,10 +61,9 @@ func init() {
 	})
 	// TODO: enable FCOS when FCCT exists
 	register.Register(&register.Test{
-		Run:            NFSv4,
-		ClusterSize:    0,
-		Name:           "linux.nfs.v4",
-		ExcludeDistros: []string{"fcos"},
+		Run:         NFSv4,
+		ClusterSize: 0,
+		Name:        "linux.nfs.v4",
 
 		// Disabled on Azure because setting hostname
 		// is required at the instance creation level

@@ -78,7 +78,6 @@ func init() {
                                ]
                              }
                            }`),
-		Distros: []string{"cl", "fcos", "rhcos"},
 	})
 }
 

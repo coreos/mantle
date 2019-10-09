@@ -31,7 +31,6 @@ func init() {
 		// Previously broken on NVMe devices, see
 		// https://github.com/coreos/bugs/issues/2399
 		MinVersion: semver.Version{Major: 1828},
-		Distros:    []string{"cl", "rhcos"},
 	})
 }
 
