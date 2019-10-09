@@ -49,23 +49,6 @@ var (
             }
         }
     }`)
-	localSecurityClientV3 = conf.Ignition(`{
-        "ignition": {
-            "version": "3.0.0",
-            "config": {
-                "merge": [{
-                    "source": "https://$IP"
-                }]
-            },
-            "security": {
-                "tls": {
-                    "certificateAuthorities": [{
-                        "source": "$KEY"
-                    }]
-                }
-            }
-        }
-    }`)
 )
 
 func init() {
@@ -74,8 +57,7 @@ func init() {
 		Run:         securityTLS,
 		ClusterSize: 1,
 		NativeFuncs: map[string]func() error{
-			"TLSServe":   TLSServe,
-			"TLSServeV3": TLSServeV3,
+			"TLSServe": TLSServe,
 		},
 		// DO: https://github.com/coreos/bugs/issues/2205
 		// Packet & QEMU: https://github.com/coreos/ignition/issues/645
@@ -109,22 +91,9 @@ EOF
 ) -extensions SAN'`, "$IP", ip, -1))
 	publicKey := c.MustSSH(server, "sudo cat /var/tls/server.crt")
 
-	var serveFunc string
-	var conf *conf.UserData
-	switch c.IgnitionVersion() {
-	case "v2":
-		serveFunc = "TLSServe"
-		conf = localSecurityClient
-	case "v3":
-		serveFunc = "TLSServeV3"
-		conf = localSecurityClientV3
-	default:
-		c.Fatal("unknown ignition version")
-	}
+	c.MustSSH(server, fmt.Sprintf("sudo systemd-run --quiet ./kolet run %s TLSServe", c.H.Name()))
 
-	c.MustSSH(server, fmt.Sprintf("sudo systemd-run --quiet ./kolet run %s %s", c.H.Name(), serveFunc))
-
-	client, err := c.NewMachine(conf.Subst("$IP", ip).Subst("$KEY", dataurl.EncodeBytes(publicKey)))
+	client, err := c.NewMachine(localSecurityClient.Subst("$IP", ip).Subst("$KEY", dataurl.EncodeBytes(publicKey)))
 	if err != nil {
 		c.Fatalf("starting client: %v", err)
 	}
@@ -181,17 +150,4 @@ func TLSServe() error {
         }
     }`)
 	return ServeTLS(customFile)
-}
-
-func TLSServeV3() error {
-	customFileV3 := []byte(`{
-        "ignition": { "version": "3.0.0" },
-        "storage": {
-            "files": [{
-                "path": "/var/resource/data",
-                "contents": { "source": "data:,kola-data" }
-            }]
-        }
-    }`)
-	return ServeTLS(customFileV3)
 }

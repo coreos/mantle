@@ -59,23 +59,6 @@ func init() {
 		              ]
 		          }
 		      }`)
-	configV3 := conf.Ignition(`{
-		          "ignition": {
-		              "version": "3.0.0"
-		          },
-		          "storage": {
-		              "files": [
-		                  {
-		                      "path": "/etc/hostname",
-		                      "mode": 420,
-							  "overwrite": true,
-		                      "contents": {
-		                          "source": "data:,core1"
-		                      }
-		                  }
-		              ]
-		          }
-		      }`)
 
 	// These tests are disabled on Azure because the hostname
 	// is required by the API and is overwritten via waagent.service
@@ -93,7 +76,6 @@ func init() {
 		Run:              setHostname,
 		ClusterSize:      1,
 		UserData:         configV2,
-		UserDataV3:       configV3,
 		ExcludePlatforms: []string{"azure"},
 	})
 }

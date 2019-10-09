@@ -64,36 +64,6 @@ var (
 		      ]
 		  }
 	      }`)
-	localClientV3 = conf.Ignition(`{
-		  "ignition": {
-		      "version": "3.0.0"
-		  },
-		  "storage": {
-		      "files": [
-			  {
-			      "path": "/var/resource/data",
-			      "contents": {
-				  "source": "data:,kola-data"
-			      },
-			      "mode": 420
-			  },
-			  {
-			      "path": "/var/resource/http",
-			      "contents": {
-				  "source": "http://$IP/http"
-			      },
-			      "mode": 420
-			  },
-			  {
-			      "path": "/var/resource/tftp",
-			      "contents": {
-				  "source": "tftp://$IP/tftp"
-			      },
-			      "mode": 420
-			  }
-		      ]
-		  }
-	      }`)
 )
 
 func init() {
@@ -147,36 +117,6 @@ func init() {
 		      ]
 		  }
 	      }`),
-		UserDataV3: conf.Ignition(`{
-		  "ignition": {
-		      "version": "3.0.0"
-		  },
-		  "storage": {
-		      "files": [
-			  {
-			      "path": "/var/resource/http",
-			      "contents": {
-				  "source": "http://s3-us-west-2.amazonaws.com/kola-fixtures/resources/anonymous"
-			      },
-			      "mode": 420
-			  },
-			  {
-			      "path": "/var/resource/https",
-			      "contents": {
-				  "source": "https://s3-us-west-2.amazonaws.com/kola-fixtures/resources/anonymous"
-			      },
-			      "mode": 420
-			  },
-			  {
-			      "path": "/var/resource/s3-anon",
-			      "contents": {
-				  "source": "s3://kola-fixtures/resources/anonymous"
-			      },
-			      "mode": 420
-			  }
-		      ]
-		  }
-	      }`),
 	})
 	register.Register(&register.Test{
 		Name:        "coreos.ignition.resource.s3",
@@ -196,27 +136,6 @@ func init() {
 		      "files": [
 			  {
 			      "filesystem": "root",
-			      "path": "/var/resource/s3-auth",
-			      "contents": {
-				  "source": "s3://kola-fixtures/resources/authenticated"
-			      },
-			      "mode": 420
-			  }
-		      ]
-		  }
-	      }`),
-		UserDataV3: conf.Ignition(`{
-		  "ignition": {
-		      "version": "3.0.0",
-		      "config": {
-		          "merge": [{
-		              "source": "s3://kola-fixtures/resources/authenticated-var-v3.ign"
-		          }]
-		      }
-		  },
-		  "storage": {
-		      "files": [
-			  {
 			      "path": "/var/resource/s3-auth",
 			      "contents": {
 				  "source": "s3://kola-fixtures/resources/authenticated"
@@ -263,29 +182,6 @@ func init() {
 		      ]
 		  }
 	      }`),
-		UserDataV3: conf.Ignition(`{
-		  "ignition": {
-		      "version": "3.0.0"
-		  },
-		  "storage": {
-		      "files": [
-			  {
-			      "path": "/var/resource/original",
-			      "contents": {
-				  "source": "http://s3-us-west-2.amazonaws.com/kola-fixtures/resources/versioned?versionId=null"
-			      },
-			      "mode": 420
-			  },
-			  {
-			      "path": "/var/resource/latest",
-			      "contents": {
-				  "source": "http://s3-us-west-2.amazonaws.com/kola-fixtures/resources/versioned?versionId=RDWqxfnlcJOSDf1.5jy6ZP.oK9Bt7_Id"
-			      },
-			      "mode": 420
-			  }
-		      ]
-		  }
-	      }`),
 	})
 }
 
@@ -300,17 +196,7 @@ func resourceLocal(c cluster.TestCluster) {
 		ip = server.IP()
 	}
 
-	var conf *conf.UserData
-	switch c.IgnitionVersion() {
-	case "v2":
-		conf = localClient
-	case "v3":
-		conf = localClientV3
-	default:
-		c.Fatal("unknown ignition version")
-	}
-
-	client, err := c.NewMachine(conf.Subst("$IP", ip))
+	client, err := c.NewMachine(localClient.Subst("$IP", ip))
 	if err != nil {
 		c.Fatalf("starting client: %v", err)
 	}

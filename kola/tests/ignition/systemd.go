@@ -48,23 +48,6 @@ func init() {
         }]
     }
 }`),
-		UserDataV3: conf.Ignition(`{
-    "ignition": {"version": "3.0.0"},
-    "systemd": {
-        "units": [{
-            "name":"nfs-server.service",
-            "enabled":true
-        }]
-    },
-    "storage": {
-        "files": [{
-            "path":"/etc/exports"
-        },
-        {
-            "path":"/var/lib/nfs/etab"
-        }]
-    }
-}`),
 		// https://github.com/coreos/mantle/issues/999
 		// On the qemu-unpriv platform the DHCP provides no data, pre-systemd 241 the DHCP server sending
 		// no routes to the link to spin in the configuring state. nfs-server.service pulls in the network-online

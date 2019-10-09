@@ -79,28 +79,6 @@ func init() {
 		               ]
 		             }
 		           }`),
-		UserDataV3: conf.Ignition(`{
-		             "ignition": { "version": "3.0.0" },
-		             "systemd": {
-		               "units": [{
-		                 "name": "system-cloudinit@usr-share-coreos-developer_data.service",
-		                 "mask": true
-		               }]
-		             },
-		             "passwd": {
-		               "groups": [
-		                 {
-		                   "name": "group1",
-		                   "gid":  501
-		                 },
-		                 {
-		                   "name": "group2",
-		                   "gid":  502,
-		                   "passwordHash": "foobar"
-		                 }
-		               ]
-		             }
-		           }`),
 	})
 	register.Register(&register.Test{
 		Name:        "cl.ignition.v1.users",
