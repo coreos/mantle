@@ -37,18 +37,6 @@ func init() {
 		Name:        "coreos.selinux.boolean",
 		Distros:     []string{"cl", "fcos", "rhcos"},
 	})
-	register.Register(&register.Test{
-		Run:         SelinuxBooleanPersist,
-		ClusterSize: 1,
-		Name:        "rhcos.selinux.boolean.persist",
-		Distros:     []string{"fcos", "rhcos"},
-	})
-	register.Register(&register.Test{
-		Run:         SelinuxManage,
-		ClusterSize: 1,
-		Name:        "rhcos.selinux.manage",
-		Distros:     []string{"rhcos"},
-	})
 }
 
 // cmdCheckOutput is used by `testSelinuxCmds()`. It contains a
@@ -172,58 +160,5 @@ func SelinuxBoolean(c cluster.TestCluster) {
 	// newBool[0] contains the original value of the boolean
 	if postBool != tempBoolState.originalValue {
 		c.Fatalf(`The SELinux boolean "%q" is incorrectly configured: wanted %q, got %q`, seBoolean, tempBoolState.originalValue, postBool)
-	}
-}
-
-// SelinuxBooleanPersist checks that you can tweak a boolean and have it
-// persist across reboots
-func SelinuxBooleanPersist(c cluster.TestCluster) {
-	seBoolean := "virt_use_nfs"
-
-	m := c.Machines()[0]
-
-	persistBoolState, err := getSelinuxBooleanState(c, m, seBoolean)
-	if err != nil {
-		c.Fatalf(`Failed to gather SELinux boolean state: %v`, err)
-	}
-
-	// construct a regexp that looks like ".*off" or ".*on"
-	persistBoolRegexp := ".*" + persistBoolState.newValue
-	cmdList := []cmdCheckOutput{
-		{fmt.Sprintf("sudo setsebool -P %s %s", seBoolean, persistBoolState.newValue), false, ""},
-		{"getsebool " + seBoolean, true, persistBoolRegexp},
-	}
-
-	testSelinuxCmds(c, m, cmdList)
-
-	// the change should be persisted after a reboot
-	postOut := c.MustSSH(m, "getsebool "+seBoolean)
-	postBool := strings.Split(string(postOut), " ")[2]
-
-	if postBool != persistBoolState.newValue {
-		c.Fatalf(`The SELinux boolean "%q" is incorrectly configured: wanted %q, got %q`, seBoolean, persistBoolState.newValue, postBool)
-	}
-}
-
-// SelinuxManage checks that you can modify an SELinux file context and
-// have it persist across reboots
-func SelinuxManage(c cluster.TestCluster) {
-	cmdList := []cmdCheckOutput{
-		{"sudo semanage fcontext -l | grep vasd", true, ".*system_u:object_r:var_auth_t:s0"},
-		{"sudo semanage fcontext -m -t httpd_log_t \"/var/opt/quest/vas/vasd(/.*)?\"", false, ""},
-		{"sudo semanage fcontext -l | grep vasd", true, ".*system_u:object_r:httpd_log_t:s0"},
-	}
-
-	m := c.Machines()[0]
-
-	testSelinuxCmds(c, m, cmdList)
-
-	// the change should be persisted after a reboot
-	output := c.MustSSH(m, "sudo semanage fcontext -l | grep vasd")
-
-	s := ".*system_u:object_r:httpd_log_t:s0"
-	match := regexp.MustCompile(s).MatchString(string(output))
-	if !match {
-		c.Fatalf(`The SELinux file context "/var/opt/quest/vas/vasd(/.*)?" is incorrectly configured.  Tried to match regexp %q, output was %q`, s, string(output))
 	}
 }

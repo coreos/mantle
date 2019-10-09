@@ -171,54 +171,6 @@ func init() {
 		           }`),
 		Distros: []string{"cl"},
 	})
-	register.Register(&register.Test{
-		Name:        "coreos.ignition.v2.users",
-		Run:         usersFcos,
-		ClusterSize: 1,
-		UserData: conf.Ignition(`{
-		             "ignition": { "version": "2.0.0" },
-		             "passwd": {
-		               "users": [
-		                 {
-		                   "name": "core",
-		                   "passwordHash": "foobar"
-		                 },
-		                 {
-		                   "name": "user1",
-		                   "create": {}
-		                 },
-		                 {
-		                   "name": "user2",
-		                   "create": {
-		                     "uid": 1010,
-		                     "groups": [ "sudo" ]
-		                   }
-		                 }
-		               ]
-		             }
-		           }`),
-		UserDataV3: conf.Ignition(`{
-		             "ignition": { "version": "3.0.0" },
-		             "passwd": {
-		               "users": [
-		                 {
-		                   "name": "core",
-		                   "passwordHash": "foobar"
-		                 },
-		                 {
-		                   "name": "user1",
-		                   "create": {}
-		                 },
-		                 {
-		                   "name": "user2",
-		                   "uid": 1010,
-		                   "groups": [ "sudo" ]
-		                 }
-		               ]
-		             }
-		           }`),
-		Distros: []string{"fcos", "rhcos"},
-	})
 }
 
 type userTest struct {
@@ -268,29 +220,6 @@ func users(c cluster.TestCluster) {
 		{
 			user:           "user2",
 			passwdRecord:   "user2:x:1010:1010::/home/user2:/bin/bash",
-			shadowPassword: "*",
-		},
-	}
-	testUser(c, m, tests)
-}
-
-func usersFcos(c cluster.TestCluster) {
-	m := c.Machines()[0]
-
-	tests := []userTest{
-		{
-			user:           "core",
-			passwdRecord:   "core:x:1000:1000:CoreOS Admin:/var/home/core:/bin/bash",
-			shadowPassword: "foobar",
-		},
-		{
-			user:           "user1",
-			passwdRecord:   "user1:x:1001:1001::/var/home/user1:/bin/bash",
-			shadowPassword: "*",
-		},
-		{
-			user:           "user2",
-			passwdRecord:   "user2:x:1010:1010::/var/home/user2:/bin/bash",
 			shadowPassword: "*",
 		},
 	}

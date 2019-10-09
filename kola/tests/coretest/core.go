@@ -63,35 +63,6 @@ func init() {
 		},
 		Distros: []string{"cl"},
 	})
-	register.Register(&register.Test{
-		Name:        "rhcos.basic",
-		Run:         LocalTests,
-		ClusterSize: 1,
-		NativeFuncs: map[string]func() error{
-			"PortSSH":          TestPortSsh,
-			"DbusPerms":        TestDbusPerms,
-			"ServicesActive":   TestServicesActiveCoreOS,
-			"ServicesDisabled": TestServicesDisabledRHCOS,
-			"ReadOnly":         TestReadOnlyFs,
-			"Useradd":          TestUseradd,
-			"MachineID":        TestMachineID,
-		},
-		Distros: []string{"rhcos"},
-	})
-	register.Register(&register.Test{
-		Name:        "fcos.basic",
-		Run:         LocalTests,
-		ClusterSize: 1,
-		NativeFuncs: map[string]func() error{
-			"PortSSH":        TestPortSsh,
-			"DbusPerms":      TestDbusPerms,
-			"ServicesActive": TestServicesActiveCoreOS,
-			"ReadOnly":       TestReadOnlyFs,
-			"Useradd":        TestUseradd,
-			"MachineID":      TestMachineID,
-		},
-		Distros: []string{"fcos"},
-	})
 
 	// tests requiring network connection to internet
 	register.Register(&register.Test{
