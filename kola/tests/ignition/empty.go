@@ -26,10 +26,13 @@ import (
 func init() {
 	// Tests for https://github.com/coreos/bugs/issues/1184
 	register.Register(&register.Test{
-		Name:             "cl.ignition.misc.empty",
-		Run:              empty,
-		ClusterSize:      1,
-		ExcludePlatforms: []string{"qemu", "esx"},
+		Name:        "cl.ignition.misc.empty",
+		Run:         empty,
+		ClusterSize: 1,
+		// There's an unfixed Packet flake with tcsd.service, which
+		// we're working around by masking the unit.  But we can't
+		// do that if there's no Ignition config to mask with.
+		ExcludePlatforms: []string{"qemu", "esx", "packet"},
 		Distros:          []string{"cl"},
 		UserData:         conf.Empty(),
 	})
