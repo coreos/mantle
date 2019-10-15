@@ -147,13 +147,15 @@ coreos:
 
 func init() {
 	register.Register(&register.Test{
-		Run:              UpdateGrubNop,
-		ClusterSize:      1,
-		Name:             "cl.update.grubnop",
-		UserData:         grubUpdaterConf,
-		MinVersion:       semver.Version{Major: 1745},
-		Distros:          []string{"cl"},
-		ExcludePlatforms: []string{"qemu-unpriv"},
+		Run:         UpdateGrubNop,
+		ClusterSize: 1,
+		Name:        "cl.update.grubnop",
+		UserData:    grubUpdaterConf,
+		MinVersion:  semver.Version{Major: 1745},
+		Distros:     []string{"cl"},
+		// tcsd.service can't be effectively disabled from
+		// cloud-config on Packet
+		ExcludePlatforms: []string{"qemu-unpriv", "packet"},
 	})
 }
 
