@@ -24,7 +24,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -96,7 +95,7 @@ func init() {
 	sort.Sort(sort.StringSlice(platformList))
 
 	cmdPreRelease.Flags().StringSliceVar(&selectedPlatforms, "platform", platformList, "platform to pre-release")
-	cmdPreRelease.Flags().StringVar(&selectedDistro, "distro", "cl", "system to pre-release")
+	cmdPreRelease.Flags().StringVar(&selectedDistro, "distro", "fedora", "system to pre-release")
 	cmdPreRelease.Flags().StringVar(&azureProfile, "azure-profile", "", "Azure Profile json file")
 	cmdPreRelease.Flags().StringVar(&awsCredentialsFile, "aws-credentials", "", "AWS credentials file")
 	cmdPreRelease.Flags().StringVar(&verifyKeyFile,
@@ -120,10 +119,6 @@ func runPreRelease(cmd *cobra.Command, args []string) error {
 	}
 
 	switch selectedDistro {
-	case "cl":
-		if err := runCLPreRelease(cmd); err != nil {
-			return err
-		}
 	case "fedora":
 		if err := runFedoraPreRelease(cmd); err != nil {
 			return err
@@ -157,61 +152,10 @@ func runFedoraPreRelease(cmd *cobra.Command) error {
 	return nil
 }
 
-func runCLPreRelease(cmd *cobra.Command) error {
-	spec := ChannelSpec()
-	ctx := context.Background()
-	client, err := getGoogleClient()
-	if err != nil {
-		plog.Fatal(err)
-	}
-
-	src, err := storage.NewBucket(client, spec.SourceURL())
-	if err != nil {
-		plog.Fatal(err)
-	}
-
-	if err := src.Fetch(ctx); err != nil {
-		plog.Fatal(err)
-	}
-
-	// Sanity check!
-	if vertxt := src.Object(src.Prefix() + "version.txt"); vertxt == nil {
-		verurl := src.URL().String() + "version.txt"
-		plog.Fatalf("File not found: %s", verurl)
-	}
-
-	var imageInfo imageInfo
-	for _, platformName := range selectedPlatforms {
-		platform := platforms[platformName]
-		plog.Printf("Running %v pre-release...", platform.displayName)
-		if err := platform.handler(ctx, client, src, &spec, &imageInfo); err != nil {
-			plog.Fatal(err)
-		}
-	}
-
-	if imageInfoFile != "" {
-		f, err := os.OpenFile(imageInfoFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
-		if err != nil {
-			plog.Fatal(err)
-		}
-		defer f.Close()
-
-		encoder := json.NewEncoder(f)
-		encoder.SetIndent("", "  ")
-		if err := encoder.Encode(imageInfo); err != nil {
-			plog.Fatalf("couldn't encode image list: %v", err)
-		}
-	}
-
-	return nil
-}
-
 // getImageFile downloads a bzipped CoreOS image, verifies its signature,
 // decompresses it, and returns the decompressed path.
 func getImageFile(client *http.Client, spec *channelSpec, src *storage.Bucket, fileName string) (string, error) {
 	switch selectedDistro {
-	case "cl":
-		return getCLImageFile(client, src, fileName)
 	case "fedora":
 		return getFedoraImageFile(client, spec, src, fileName)
 	default:
@@ -226,37 +170,6 @@ func getImageTypeURI() string {
 	return specImageType
 }
 
-func getCLImageFile(client *http.Client, src *storage.Bucket, fileName string) (string, error) {
-	cacheDir := filepath.Join(sdk.RepoCache(), "images", specChannel, specBoard, specVersion)
-	bzipPath := filepath.Join(cacheDir, fileName)
-	imagePath := strings.TrimSuffix(bzipPath, filepath.Ext(bzipPath))
-
-	if _, err := os.Stat(imagePath); err == nil {
-		plog.Printf("Reusing existing image %q", imagePath)
-		return imagePath, nil
-	}
-
-	bzipUri, err := url.Parse(fileName)
-	if err != nil {
-		return "", err
-	}
-
-	bzipUri = src.URL().ResolveReference(bzipUri)
-
-	plog.Printf("Downloading image %q to %q", bzipUri, bzipPath)
-
-	if err := sdk.UpdateSignedFile(bzipPath, bzipUri.String(), client, verifyKeyFile); err != nil {
-		return "", err
-	}
-
-	// decompress it
-	plog.Printf("Decompressing %q...", bzipPath)
-	if err := util.Bunzip2File(imagePath, bzipPath); err != nil {
-		return "", err
-	}
-	return imagePath, nil
-}
-
 func getFedoraImageFile(client *http.Client, spec *channelSpec, src *storage.Bucket, fileName string) (string, error) {
 	cacheDir := filepath.Join(sdk.RepoCache(), "images", specChannel, specVersion)
 	rawxzPath := filepath.Join(cacheDir, fileName)
@@ -267,7 +180,7 @@ func getFedoraImageFile(client *http.Client, spec *channelSpec, src *storage.Buc
 		return imagePath, nil
 	}
 
-	rawxzURI, err := url.Parse(fmt.Sprintf("%v/%v/compose/%v/%v/images/%v", spec.BaseURL, specComposeID, getImageTypeURI(), specBoard, fileName))
+	rawxzURI, err := url.Parse(fmt.Sprintf("%v/%v/compose/%v/%v/images/%v", spec.BaseURL, specComposeID, getImageTypeURI(), specArchitecture, fileName))
 	if err != nil {
 		return "", err
 	}
@@ -445,7 +358,7 @@ func getSpecAWSImageMetadata(spec *channelSpec) (map[string]string, error) {
 		Timestamp: specTimestamp,
 		Respin:    specRespin,
 		ImageType: specImageType,
-		Arch:      specBoard,
+		Arch:      specArchitecture,
 	}
 	t := template.Must(template.New("filename").Parse(imageFileName))
 	buffer := &bytes.Buffer{}
@@ -456,9 +369,6 @@ func getSpecAWSImageMetadata(spec *channelSpec) (map[string]string, error) {
 
 	var imageName string
 	switch selectedDistro {
-	case "cl":
-		imageName = fmt.Sprintf("%v-%v-%v", spec.AWS.BaseName, specChannel, specVersion)
-		imageName = regexp.MustCompile(`[^A-Za-z0-9()\\./_-]`).ReplaceAllLiteralString(imageName, "_")
 	case "fedora":
 		imageName = strings.TrimSuffix(imageFileName, ".raw.xz")
 	}
@@ -502,10 +412,8 @@ func awsUploadToPartition(spec *channelSpec, part *awsPartitionSpec, imageName, 
 
 	var s3ObjectPath string
 	switch selectedDistro {
-	case "cl":
-		s3ObjectPath = fmt.Sprintf("%s/%s/%s", specBoard, specVersion, strings.TrimSuffix(imageFileName, filepath.Ext(imageFileName)))
 	case "fedora":
-		s3ObjectPath = fmt.Sprintf("%s/%s/%s", specBoard, specVersion, strings.TrimSuffix(imageFileName, filepath.Ext(imageFileName)))
+		s3ObjectPath = fmt.Sprintf("%s/%s/%s", specArchitecture, specVersion, strings.TrimSuffix(imageFileName, filepath.Ext(imageFileName)))
 	}
 	s3ObjectURL := fmt.Sprintf("s3://%s/%s", part.Bucket, s3ObjectPath)
 
@@ -525,8 +433,6 @@ func awsUploadToPartition(spec *channelSpec, part *awsPartitionSpec, imageName, 
 
 		var format aws.EC2ImageFormat
 		switch selectedDistro {
-		case "cl":
-			format = aws.EC2ImageFormatVmdk
 		case "fedora":
 			format = aws.EC2ImageFormatRaw
 		}
@@ -552,31 +458,14 @@ func awsUploadToPartition(spec *channelSpec, part *awsPartitionSpec, imageName, 
 	}
 	resources := []string{snapshot.SnapshotID, hvmImageID}
 
-	var pvImageID string
-	if selectedDistro == "cl" {
-		pvImageID, err = api.CreatePVImage(snapshot.SnapshotID, aws.ContainerLinuxDiskSizeGiB, imageName, imageDescription+" (PV)")
-		if err != nil {
-			return nil, nil, fmt.Errorf("unable to create PV image: %v", err)
-		}
-		resources = append(resources, pvImageID)
-	}
-
 	switch selectedDistro {
-	case "cl":
-		err = api.CreateTags(resources, map[string]string{
-			"Channel": specChannel,
-			"Version": specVersion,
-		})
-		if err != nil {
-			return nil, nil, fmt.Errorf("couldn't tag images: %v", err)
-		}
 	case "fedora":
 		err = api.CreateTags(resources, map[string]string{
 			"Channel":   specChannel,
 			"Version":   specVersion,
 			"ComposeID": specComposeID,
 			"Date":      specTimestamp,
-			"Arch":      specBoard,
+			"Arch":      specArchitecture,
 		})
 		if err != nil {
 			return nil, nil, fmt.Errorf("couldn't tag images: %v", err)
@@ -632,12 +521,6 @@ func awsUploadToPartition(spec *channelSpec, part *awsPartitionSpec, imageName, 
 	}
 
 	var pvAmis map[string]string
-	if selectedDistro == "cl" {
-		pvAmis, err = postprocess(pvImageID, true)
-		if err != nil {
-			return nil, nil, fmt.Errorf("processing PV images: %v", err)
-		}
-	}
 
 	return hvmAmis, pvAmis, nil
 }
@@ -773,12 +656,6 @@ func awsPreRelease(ctx context.Context, client *http.Client, src *storage.Bucket
 				PvAmi:  pvAmis[region],
 				HvmAmi: hvmAmis[region],
 			})
-		}
-	}
-
-	if selectedDistro == "cl" {
-		if err := awsUploadAmiLists(ctx, src, spec, &amis); err != nil {
-			return fmt.Errorf("uploading AMI IDs: %v", err)
 		}
 	}
 

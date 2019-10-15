@@ -181,7 +181,7 @@ func writeProps() error {
 		Platform        string    `json:"platform"`
 		Distro          string    `json:"distro"`
 		IgnitionVersion string    `json:"ignitionversion"`
-		Board           string    `json:"board"`
+		Architecture    string    `json:"architecture"`
 		OSContainer     string    `json:"oscontainer"`
 		AWS             AWS       `json:"aws"`
 		Azure           Azure     `json:"azure"`
@@ -196,7 +196,7 @@ func writeProps() error {
 		Platform:        kolaPlatform,
 		Distro:          kola.Options.Distribution,
 		IgnitionVersion: kola.Options.IgnitionVersion,
-		Board:           kola.QEMUOptions.Board,
+		Architecture:    kola.QEMUOptions.Architecture,
 		OSContainer:     kola.Options.OSContainer,
 		AWS: AWS{
 			Region:       kola.AWSOptions.Region,

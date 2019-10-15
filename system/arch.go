@@ -18,21 +18,10 @@ import (
 	"runtime"
 )
 
-func PortageArch() string {
+func GetArchitecture() string {
 	arch := runtime.GOARCH
-	switch arch {
-	case "386":
-		arch = "x86"
-
-	// Go and Portage agree for these.
-	case "amd64":
-	case "arm":
-	case "arm64":
-	case "ppc64":
-	case "s390x":
-	case "ppc64le":
-	default:
-		panic("No portage arch defined for " + arch)
+	if arch == "386" {
+		return "x86"
 	}
 	return arch
 }

@@ -71,12 +71,12 @@ type awsSpec struct {
 }
 
 type channelSpec struct {
-	BaseURL      string // Copy from $BaseURL/$Board/$Version
-	Boards       []string
-	Destinations []storageSpec
-	GCE          gceSpec
-	Azure        azureSpec
-	AWS          awsSpec
+	BaseURL       string // Copy from $BaseURL/$Board/$Version
+	Architectures []string
+	Destinations  []storageSpec
+	GCE           gceSpec
+	Azure         azureSpec
+	AWS           awsSpec
 }
 
 type fcosChannelSpec struct {

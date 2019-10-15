@@ -35,25 +35,25 @@ var (
 		Run:   runCreateImage,
 	}
 
-	createImageFamily  string
-	createImageBoard   string
-	createImageVersion string
-	createImageRoot    string
-	createImageName    string
-	createImageForce   bool
-	createImageFcos    bool
+	createImageFamily       string
+	createImageArchitecture string
+	createImageVersion      string
+	createImageRoot         string
+	createImageName         string
+	createImageForce        bool
+	createImageFcos         bool
 )
 
 func init() {
 	user := os.Getenv("USER")
 	cmdCreateImage.Flags().StringVar(&createImageFamily, "family",
 		user, "GCE image group and name prefix")
-	cmdCreateImage.Flags().StringVar(&createImageBoard, "board",
-		"amd64-usr", "OS board name")
+	cmdCreateImage.Flags().StringVar(&createImageArchitecture, "architecture",
+		"amd64", "OS architecture name")
 	cmdCreateImage.Flags().StringVar(&createImageVersion, "version",
 		"", "OS build version")
 	cmdCreateImage.Flags().StringVar(&createImageRoot, "source-root",
-		"gs://users.developer.core-os.net/"+user+"/boards",
+		"gs://users.developer.core-os.net/"+user+"/architectures",
 		"Storage URL prefix")
 	cmdCreateImage.Flags().StringVar(&createImageName, "source-name",
 		"coreos_production_gce.tar.gz",
@@ -91,7 +91,7 @@ func runCreateImage(cmd *cobra.Command, args []string) {
 
 	bucket := gsURL.Host
 	imageNameGS := strings.TrimPrefix(path.Join(gsURL.Path,
-		createImageBoard, createImageVersion, createImageName), "/")
+		createImageArchitecture, createImageVersion, createImageName), "/")
 	imageNameGCE := gceSanitize(createImageFamily + "-" + createImageVersion)
 
 	storageAPI, err := storage.New(api.Client())

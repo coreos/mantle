@@ -228,17 +228,17 @@ func mkpath(basedir string) (string, error) {
 	return f.Name(), nil
 }
 
-func CreateQEMUCommand(board, uuid, biosImage, consolePath, confPath, diskImagePath string, isIgnition bool, options MachineOptions) ([]string, []*os.File, error) {
+func CreateQEMUCommand(arch, uuid, biosImage, consolePath, confPath, diskImagePath string, isIgnition bool, options MachineOptions) ([]string, []*os.File, error) {
 	var qmCmd []string
 
-	// As we expand this list of supported native + board
-	// archs combos we should coordinate with the
+	// As we expand this list of supported native + arch
+	// combos we should coordinate with the
 	// coreos-assembler folks as they utilize something
 	// similar in cosa run
 	var qmBinary string
-	combo := runtime.GOARCH + "--" + board
+	combo := runtime.GOARCH + "--" + arch
 	switch combo {
-	case "amd64--amd64-usr":
+	case "amd64--amd64":
 		qmBinary = "qemu-system-x86_64"
 		qmCmd = []string{
 			"qemu-system-x86_64",
@@ -246,7 +246,7 @@ func CreateQEMUCommand(board, uuid, biosImage, consolePath, confPath, diskImageP
 			"-cpu", "host",
 			"-m", "1024",
 		}
-	case "amd64--arm64-usr":
+	case "amd64--arm64":
 		qmBinary = "qemu-system-aarch64"
 		qmCmd = []string{
 			"qemu-system-aarch64",
@@ -254,7 +254,7 @@ func CreateQEMUCommand(board, uuid, biosImage, consolePath, confPath, diskImageP
 			"-cpu", "cortex-a57",
 			"-m", "2048",
 		}
-	case "arm64--amd64-usr":
+	case "arm64--amd64":
 		qmBinary = "qemu-system-x86_64"
 		qmCmd = []string{
 			"qemu-system-x86_64",
@@ -262,7 +262,7 @@ func CreateQEMUCommand(board, uuid, biosImage, consolePath, confPath, diskImageP
 			"-cpu", "kvm64",
 			"-m", "1024",
 		}
-	case "arm64--arm64-usr":
+	case "arm64--arm64":
 		qmBinary = "qemu-system-aarch64"
 		qmCmd = []string{
 			"qemu-system-aarch64",
@@ -270,7 +270,7 @@ func CreateQEMUCommand(board, uuid, biosImage, consolePath, confPath, diskImageP
 			"-cpu", "host",
 			"-m", "2048",
 		}
-	case "s390x--s390x-usr":
+	case "s390x--s390x":
 		qmBinary = "qemu-system-s390x"
 		qmCmd = []string{
 			"qemu-system-s390x",
@@ -278,7 +278,7 @@ func CreateQEMUCommand(board, uuid, biosImage, consolePath, confPath, diskImageP
 			"-cpu", "host",
 			"-m", "2048",
 		}
-	case "ppc64le--ppc64le-usr":
+	case "ppc64le--ppc64le":
 		qmBinary = "qemu-system-ppc64"
 		qmCmd = []string{
 			"qemu-system-ppc64",
@@ -296,23 +296,23 @@ func CreateQEMUCommand(board, uuid, biosImage, consolePath, confPath, diskImageP
 		"-chardev", "file,id=log,path="+consolePath,
 		"-serial", "chardev:log",
 		"-object", "rng-random,filename=/dev/urandom,id=rng0",
-		"-device", Virtio(board, "rng", "rng=rng0"),
+		"-device", Virtio(arch, "rng", "rng=rng0"),
 	)
 
-	if board != "s390x-usr" && board != "ppc64le-usr" {
+	if arch != "s390x" && arch != "ppc64le" {
 		qmCmd = append(qmCmd, "-bios", biosImage)
 	}
 
 	if isIgnition {
 		// -fw_cfg is not supported for s390x, instead guestfs utility is used
-		if board != "s390x-usr" && board != "ppc64le-usr" {
+		if arch != "s390x" && arch != "ppc64le" {
 			qmCmd = append(qmCmd,
 				"-fw_cfg", "name=opt/com.coreos/config,file="+confPath)
 		}
 	} else {
 		qmCmd = append(qmCmd,
 			"-fsdev", "local,id=cfg,security_model=none,readonly,path="+confPath,
-			"-device", Virtio(board, "9p", "fsdev=cfg,mount_tag=config-2"))
+			"-device", Virtio(arch, "9p", "fsdev=cfg,mount_tag=config-2"))
 	}
 
 	// auto-read-only is only available in 3.1.0 & greater versions of QEMU
@@ -341,7 +341,7 @@ func CreateQEMUCommand(board, uuid, biosImage, consolePath, confPath, diskImageP
 		ConfPath:    "",
 	}
 
-	if board == "s390x-usr" || board == "ppc64le-usr" {
+	if arch == "s390x" || arch == "ppc64le" {
 		primaryDisk.ConfPath = confPath
 	}
 
@@ -362,7 +362,7 @@ func CreateQEMUCommand(board, uuid, biosImage, consolePath, confPath, diskImageP
 		id := fmt.Sprintf("d%d", fdnum)
 		qmCmd = append(qmCmd, "-add-fd", fmt.Sprintf("fd=%d,set=%d", fdnum, fdset),
 			"-drive", fmt.Sprintf("if=none,id=%s,format=qcow2,file=/dev/fdset/%d%s", id, fdset, autoReadOnly),
-			"-device", Virtio(board, "blk", fmt.Sprintf("drive=%s%s", id, disk.getOpts())))
+			"-device", Virtio(arch, "blk", fmt.Sprintf("drive=%s%s", id, disk.getOpts())))
 		fdnum += 1
 		fdset += 1
 	}
@@ -372,17 +372,17 @@ func CreateQEMUCommand(board, uuid, biosImage, consolePath, confPath, diskImageP
 
 // The virtio device name differs between machine types but otherwise
 // configuration is the same. Use this to help construct device args.
-func Virtio(board, device, args string) string {
+func Virtio(arch, device, args string) string {
 	var suffix string
-	switch board {
-	case "amd64-usr", "ppc64le-usr":
+	switch arch {
+	case "amd64", "ppc64le":
 		suffix = "pci"
-	case "arm64-usr":
+	case "arm64":
 		suffix = "device"
-	case "s390x-usr":
+	case "s390x":
 		suffix = "ccw"
 	default:
-		panic(board)
+		panic(arch)
 	}
 	return fmt.Sprintf("virtio-%s-%s,%s", device, suffix, args)
 }

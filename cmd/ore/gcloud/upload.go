@@ -37,21 +37,21 @@ var (
 		Run:   runUpload,
 	}
 
-	uploadBucket    string
-	uploadImageName string
-	uploadBoard     string
-	uploadFile      string
-	uploadFedora    bool
-	uploadForce     bool
+	uploadBucket       string
+	uploadImageName    string
+	uploadArchitecture string
+	uploadFile         string
+	uploadFedora       bool
+	uploadForce        bool
 )
 
 func init() {
 	build := sdk.BuildRoot()
 	cmdUpload.Flags().StringVar(&uploadBucket, "bucket", "gs://users.developer.core-os.net", "gs://bucket/prefix/ prefix defaults to $USER")
 	cmdUpload.Flags().StringVar(&uploadImageName, "name", "", "name for uploaded image, defaults to COREOS_VERSION")
-	cmdUpload.Flags().StringVar(&uploadBoard, "board", "amd64-usr", "board used for naming with default prefix only")
+	cmdUpload.Flags().StringVar(&uploadArchitecture, "architecture", "amd64", "architecture used for naming with default prefix only")
 	cmdUpload.Flags().StringVar(&uploadFile, "file",
-		build+"/images/amd64-usr/latest/coreos_production_gce.tar.gz",
+		build+"/images/amd64/latest/coreos_production_gce.tar.gz",
 		"path_to_coreos_image (build with: ./image_to_vm.sh --format=gce ...)")
 	cmdUpload.Flags().BoolVar(&uploadFedora, "fcos", false, "Flag this is Fedora CoreOS (or a derivative); currently enables SECURE_BOOT and UEFI_COMPATIBLE")
 	cmdUpload.Flags().BoolVar(&uploadForce, "force", false, "overwrite existing GS and GCE images without prompt")
@@ -87,11 +87,11 @@ func runUpload(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "URL missing bucket name %v\n", uploadBucket)
 		os.Exit(1)
 	}
-	// if prefix not specified default name to gs://bucket/$USER/$BOARD/$VERSION
+	// if prefix not specified default name to gs://bucket/$USER/$Architecture/$VERSION
 	if gsURL.Path == "" {
 		if user := os.Getenv("USER"); user != "" {
 			gsURL.Path = "/" + os.Getenv("USER")
-			gsURL.Path += "/" + uploadBoard
+			gsURL.Path += "/" + uploadArchitecture
 		}
 	}
 

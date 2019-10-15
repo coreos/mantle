@@ -20,9 +20,17 @@ import (
 
 	"github.com/coreos/pkg/capnslog"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/coreos/mantle/auth"
 	"github.com/coreos/mantle/cli"
+	"github.com/coreos/mantle/util"
+)
+
+var (
+	specArchitecture string
+	specChannel      string
+	specVersion      string
 )
 
 var (
@@ -48,6 +56,12 @@ func getGoogleClient() (*http.Client, error) {
 		}
 	}
 	return auth.GoogleClient()
+}
+
+func AddSpecFlags(flags *pflag.FlagSet) {
+	arch := util.DefaultArchitecture()
+	flags.StringVarP(&specArchitecture, "architecture", "A",
+		arch, "target architecture")
 }
 
 func main() {

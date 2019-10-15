@@ -22,29 +22,24 @@ import (
 	"github.com/coreos/mantle/auth"
 	"github.com/coreos/mantle/kola"
 	"github.com/coreos/mantle/platform"
-	"github.com/coreos/mantle/sdk"
+	"github.com/coreos/mantle/util"
 )
 
 var (
-	outputDir          string
-	kolaPlatform       string
-	defaultTargetBoard = sdk.DefaultBoard()
-	kolaArchitectures  = []string{"amd64"}
-	kolaPlatforms      = []string{"aws", "azure", "do", "esx", "gce", "openstack", "packet", "qemu", "qemu-unpriv"}
-	kolaDistros        = []string{"fcos", "rhcos"}
-	kolaDefaultImages  = map[string]string{
-		"amd64-usr": sdk.BuildRoot() + "/images/amd64-usr/latest/coreos_production_image.bin",
-		"arm64-usr": sdk.BuildRoot() + "/images/arm64-usr/latest/coreos_production_image.bin",
-	}
+	outputDir                   string
+	kolaPlatform                string
+	defaultTargetArchitecture   = util.DefaultArchitecture()
+	kolaArchitectures           = []string{"amd64"}
+	kolaPlatforms               = []string{"aws", "azure", "do", "esx", "gce", "openstack", "packet", "qemu", "qemu-unpriv"}
+	kolaDistros                 = []string{"fcos", "rhcos"}
 	kolaIgnitionVersionDefaults = map[string]string{
-		"cl":    "v2",
 		"fcos":  "v3",
 		"rhcos": "v3",
 	}
 
 	kolaDefaultBIOS = map[string]string{
-		"amd64-usr": "bios-256k.bin",
-		"arm64-usr": sdk.BuildRoot() + "/images/arm64-usr/latest/coreos_production_qemu_uefi_efi_code.fd",
+		"amd64": "bios-256k.bin",
+		"arm64": "vgabios.bin",
 	}
 )
 
@@ -133,13 +128,11 @@ func init() {
 	sv(&kola.PacketOptions.ApiKey, "packet-api-key", "", "Packet API key (overrides config file)")
 	sv(&kola.PacketOptions.Project, "packet-project", "", "Packet project UUID (overrides config file)")
 	sv(&kola.PacketOptions.Facility, "packet-facility", "sjc1", "Packet facility code")
-	sv(&kola.PacketOptions.Plan, "packet-plan", "", "Packet plan slug (default board-dependent, e.g. \"t1.small.x86\")")
-	sv(&kola.PacketOptions.InstallerImageBaseURL, "packet-installer-image-base-url", "", "Packet installer image base URL, non-https (default board-dependent, e.g. \"http://stable.release.core-os.net/amd64-usr/current\")")
-	sv(&kola.PacketOptions.ImageURL, "packet-image-url", "", "Packet image URL (default board-dependent, e.g. \"https://alpha.release.core-os.net/amd64-usr/current/coreos_production_packet_image.bin.bz2\")")
+	sv(&kola.PacketOptions.Plan, "packet-plan", "", "Packet plan slug (default architecture-dependent, e.g. \"t1.small.x86\")")
 	sv(&kola.PacketOptions.StorageURL, "packet-storage-url", "gs://users.developer.core-os.net/"+os.Getenv("USER")+"/mantle", "Google Storage base URL for temporary uploads")
 
 	// QEMU-specific options
-	sv(&kola.QEMUOptions.Board, "board", defaultTargetBoard, "target board")
+	sv(&kola.QEMUOptions.Architecture, "architecture", defaultTargetArchitecture, "target architecture")
 	sv(&kola.QEMUOptions.DiskImage, "qemu-image", "", "path to CoreOS disk image")
 	sv(&kola.QEMUOptions.BIOSImage, "qemu-bios", "", "BIOS to use for QEMU vm")
 	bv(&kola.QEMUOptions.UseVanillaImage, "qemu-skip-mangle", false, "don't modify CL disk image to capture console log")
@@ -147,7 +140,7 @@ func init() {
 
 // Sync up the command line options if there is dependency
 func syncOptions() error {
-	kola.PacketOptions.Board = kola.QEMUOptions.Board
+	kola.PacketOptions.Architecture = kola.QEMUOptions.Architecture
 	kola.PacketOptions.GSOptions = &kola.GCEOptions
 
 	validateOption := func(name, item string, valid []string) error {
@@ -167,17 +160,8 @@ func syncOptions() error {
 		return err
 	}
 
-	image, ok := kolaDefaultImages[kola.QEMUOptions.Board]
-	if kola.QEMUOptions.Distribution == "cl" && !ok {
-		return fmt.Errorf("unsupport board %q", kola.QEMUOptions.Board)
-	}
-
-	if kola.QEMUOptions.DiskImage == "" {
-		kola.QEMUOptions.DiskImage = image
-	}
-
 	if kola.QEMUOptions.BIOSImage == "" {
-		kola.QEMUOptions.BIOSImage = kolaDefaultBIOS[kola.QEMUOptions.Board]
+		kola.QEMUOptions.BIOSImage = kolaDefaultBIOS[kola.QEMUOptions.Architecture]
 	}
 	units, _ := root.PersistentFlags().GetStringSlice("debug-systemd-units")
 	for _, unit := range units {
@@ -192,6 +176,7 @@ func syncOptions() error {
 		return fmt.Errorf("oscontainer is only supported on rhcos")
 	}
 
+	ok := false
 	if kola.Options.IgnitionVersion == "" {
 		kola.Options.IgnitionVersion, ok = kolaIgnitionVersionDefaults[kola.Options.Distribution]
 		if !ok {

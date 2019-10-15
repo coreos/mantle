@@ -19,7 +19,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -407,30 +406,18 @@ func getClusterSemver(flight platform.Flight, outputDir string) (*semver.Version
 		return nil, fmt.Errorf("creating new machine for semver check: %v", err)
 	}
 
-	out, stderr, err := m.SSH("grep ^VERSION_ID= /etc/os-release")
+	_, stderr, err := m.SSH("grep ^VERSION_ID= /etc/os-release")
 	if err != nil {
 		return nil, fmt.Errorf("parsing /etc/os-release: %v: %s", err, stderr)
 	}
-	ver := strings.Split(string(out), "=")[1]
 
 	// TODO: add distro specific version handling
 	switch Options.Distribution {
-	case "cl":
-		return parseCLVersion(ver)
 	case "rhcos":
 		return &semver.Version{}, nil
 	}
 
 	return nil, fmt.Errorf("no case to handle version parsing for distribution %q", Options.Distribution)
-}
-
-func parseCLVersion(input string) (*semver.Version, error) {
-	version, err := semver.NewVersion(input)
-	if err != nil {
-		return nil, fmt.Errorf("parsing os-release semver: %v", err)
-	}
-
-	return version, nil
 }
 
 // runTest is a harness for running a single test.
@@ -519,18 +506,13 @@ func runTest(h *harness.H, t *register.Test, pltfrm string, flight platform.Flig
 // architecture returns the machine architecture of the given platform.
 func architecture(pltfrm string) string {
 	nativeArch := "amd64"
-	if (pltfrm == "qemu" || pltfrm == "qemu-unpriv") && QEMUOptions.Board != "" {
-		nativeArch = boardToArch(QEMUOptions.Board)
+	if (pltfrm == "qemu" || pltfrm == "qemu-unpriv") && QEMUOptions.Architecture != "" {
+		nativeArch = QEMUOptions.Architecture
 	}
-	if pltfrm == "packet" && PacketOptions.Board != "" {
-		nativeArch = boardToArch(PacketOptions.Board)
+	if pltfrm == "packet" && PacketOptions.Architecture != "" {
+		nativeArch = PacketOptions.Architecture
 	}
 	return nativeArch
-}
-
-// returns the arch part of an sdk board name
-func boardToArch(board string) string {
-	return strings.SplitN(board, "-", 2)[0]
 }
 
 // scpKolet searches for a kolet binary and copies it to the machine.

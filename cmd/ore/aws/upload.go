@@ -49,7 +49,7 @@ After a successful run, the final line of output will be a line of JSON describi
 	uploadSourceObject    string
 	uploadBucket          string
 	uploadImageName       string
-	uploadBoard           string
+	uploadArchitecture    string
 	uploadFile            string
 	uploadDiskSizeGiB     uint
 	uploadDiskSizeInspect bool
@@ -67,9 +67,9 @@ After a successful run, the final line of output will be a line of JSON describi
 func init() {
 	AWS.AddCommand(cmdUpload)
 	cmdUpload.Flags().StringVar(&uploadSourceObject, "source-object", "", "'s3://' URI pointing to image data (default: same as upload)")
-	cmdUpload.Flags().StringVar(&uploadBucket, "bucket", "", "s3://bucket/prefix/ (defaults to a regional bucket and prefix defaults to $USER/board/name)")
+	cmdUpload.Flags().StringVar(&uploadBucket, "bucket", "", "s3://bucket/prefix/ (defaults to a regional bucket and prefix defaults to $USER/architecture/name)")
 	cmdUpload.Flags().StringVar(&uploadImageName, "name", "", "name of uploaded image (default COREOS_VERSION)")
-	cmdUpload.Flags().StringVar(&uploadBoard, "board", "amd64-usr", "board used for naming with default prefix only")
+	cmdUpload.Flags().StringVar(&uploadArchitecture, "architecture", "amd64", "architecture used for naming with default prefix only")
 	cmdUpload.Flags().StringVar(&uploadFile, "file",
 		defaultUploadFile(),
 		"path to CoreOS image (build with: ./image_to_vm.sh --format=ami_vmdk ...)")
@@ -98,7 +98,7 @@ func defaultUploadFile() string {
 // defaultBucketURL determines the location the tool should upload to.
 // The 'urlPrefix' parameter, if it contains a path, will override all other
 // arguments
-func defaultBucketURL(urlPrefix, imageName, board, file, region string) (*url.URL, error) {
+func defaultBucketURL(urlPrefix, imageName, architecture, file, region string) (*url.URL, error) {
 	if urlPrefix == "" {
 		urlPrefix = fmt.Sprintf("s3://%s", defaultBucketNameForRegion(region))
 	}
@@ -114,9 +114,9 @@ func defaultBucketURL(urlPrefix, imageName, board, file, region string) (*url.UR
 		return nil, fmt.Errorf("URL missing bucket name %v\n", urlPrefix)
 	}
 
-	// if prefix not specified, default to /$USER/$BOARD/$VERSION
+	// if prefix not specified, default to /$USER/$ARCHITECTURE/$VERSION
 	if s3URL.Path == "" {
-		s3URL.Path = fmt.Sprintf("/%s/%s/%s", os.Getenv("USER"), board, imageName)
+		s3URL.Path = fmt.Sprintf("/%s/%s/%s", os.Getenv("USER"), architecture, imageName)
 	}
 
 	if s3URL.Path[len(s3URL.Path)-1] != '/' {
@@ -187,7 +187,7 @@ func runUpload(cmd *cobra.Command, args []string) error {
 			os.Exit(1)
 		}
 	} else {
-		s3URL, err = defaultBucketURL(uploadBucket, imageName, uploadBoard, uploadFile, region)
+		s3URL, err = defaultBucketURL(uploadBucket, imageName, uploadArchitecture, uploadFile, region)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 			os.Exit(1)

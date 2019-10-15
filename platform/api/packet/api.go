@@ -55,22 +55,22 @@ var (
 
 	defaultInstallerImageBaseURL = map[string]string{
 		// HTTPS causes iPXE to fail on a "permission denied" error
-		"amd64-usr": "http://stable.release.core-os.net/amd64-usr/current",
-		"arm64-usr": "http://beta.release.core-os.net/arm64-usr/current",
+		"amd64": "http://stable.release.core-os.net/amd64-usr/current",
+		"arm64": "http://beta.release.core-os.net/arm64-usr/current",
 	}
 	defaultImageURL = map[string]string{
-		"amd64-usr": "https://alpha.release.core-os.net/amd64-usr/current/coreos_production_packet_image.bin.bz2",
-		"arm64-usr": "https://alpha.release.core-os.net/arm64-usr/current/coreos_production_packet_image.bin.bz2",
+		"amd64": "https://alpha.release.core-os.net/amd64-usr/current/coreos_production_packet_image.bin.bz2",
+		"arm64": "https://alpha.release.core-os.net/arm64-usr/current/coreos_production_packet_image.bin.bz2",
 	}
 	defaultPlan = map[string]string{
-		"amd64-usr": "t1.small.x86",
-		"arm64-usr": "c1.large.arm",
+		"amd64": "t1.small.x86",
+		"arm64": "c1.large.arm",
 	}
 	linuxConsole = map[string]string{
-		"amd64-usr":   "ttyS1,115200",
-		"arm64-usr":   "ttyAMA0,115200",
-		"s390x-usr":   "ttysclp0,115200",
-		"ppc64le-usr": "hvc0,115200",
+		"amd64":   "ttyS1,115200",
+		"arm64":   "ttyAMA0,115200",
+		"s390x":   "ttysclp0,115200",
+		"ppc64le": "hvc0,115200",
 	}
 )
 
@@ -90,8 +90,8 @@ type Options struct {
 	Facility string
 	// Slug of the device type (e.g. "t1.small.x86")
 	Plan string
-	// The Container Linux board name
-	Board string
+	// The Target arch of the FCOS/RHCOS instance ?
+	Architecture string
 	// e.g. http://alpha.release.core-os.net/amd64-usr/current
 	InstallerImageBaseURL string
 	// e.g. https://alpha.release.core-os.net/amd64-usr/current/coreos_production_packet_image.bin.bz2
@@ -137,18 +137,18 @@ func New(opts *Options) (*API, error) {
 		}
 	}
 
-	_, ok := linuxConsole[opts.Board]
+	_, ok := linuxConsole[opts.Architecture]
 	if !ok {
-		return nil, fmt.Errorf("unknown board %q", opts.Board)
+		return nil, fmt.Errorf("unknown arch %q", opts.Architecture)
 	}
 	if opts.Plan == "" {
-		opts.Plan = defaultPlan[opts.Board]
+		opts.Plan = defaultPlan[opts.Architecture]
 	}
 	if opts.InstallerImageBaseURL == "" {
-		opts.InstallerImageBaseURL = defaultInstallerImageBaseURL[opts.Board]
+		opts.InstallerImageBaseURL = defaultInstallerImageBaseURL[opts.Architecture]
 	}
 	if opts.ImageURL == "" {
-		opts.ImageURL = defaultImageURL[opts.Board]
+		opts.ImageURL = defaultImageURL[opts.Architecture]
 	}
 
 	gapi, err := gcloud.New(opts.GSOptions)
@@ -463,7 +463,7 @@ func (a *API) ipxeScript(userdataURL string) string {
 set base-url %s
 kernel ${base-url}/coreos_production_pxe.vmlinuz initrd=coreos_production_pxe_image.cpio.gz coreos.first_boot=1 coreos.config.url=%s console=%s
 initrd ${base-url}/coreos_production_pxe_image.cpio.gz
-boot`, strings.TrimRight(a.opts.InstallerImageBaseURL, "/"), userdataURL, linuxConsole[a.opts.Board])
+boot`, strings.TrimRight(a.opts.InstallerImageBaseURL, "/"), userdataURL, linuxConsole[a.opts.Architecture])
 }
 
 // device creation seems a bit flaky, so try a few times

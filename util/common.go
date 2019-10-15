@@ -15,6 +15,7 @@
 package util
 
 import (
+	"github.com/coreos/mantle/system"
 	"unsafe"
 )
 
@@ -49,4 +50,8 @@ func StrToPtr(s string) *string {
 
 func BoolToPtr(b bool) *bool {
 	return &b
+}
+
+func DefaultArchitecture() string {
+	return system.GetArchitecture()
 }

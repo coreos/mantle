@@ -91,7 +91,7 @@ func (qc *Cluster) NewMachineWithOptions(userdata *conf.UserData, options platfo
 		consolePath: filepath.Join(dir, "console.txt"),
 	}
 
-	qmCmd, extraFiles, err := platform.CreateQEMUCommand(qc.flight.opts.Board, qm.id, qc.flight.opts.BIOSImage, qm.consolePath, confPath, qc.flight.diskImagePath, conf.IsIgnition(), options)
+	qmCmd, extraFiles, err := platform.CreateQEMUCommand(qc.flight.opts.Architecture, qm.id, qc.flight.opts.BIOSImage, qm.consolePath, confPath, qc.flight.diskImagePath, conf.IsIgnition(), options)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func (qc *Cluster) NewMachineWithOptions(userdata *conf.UserData, options platfo
 
 	qc.mu.Lock()
 
-	qmCmd = append(qmCmd, "-netdev", "user,id=eth0,hostfwd=tcp:127.0.0.1:0-:22", "-device", platform.Virtio(qc.flight.opts.Board, "net", "netdev=eth0"))
+	qmCmd = append(qmCmd, "-netdev", "user,id=eth0,hostfwd=tcp:127.0.0.1:0-:22", "-device", platform.Virtio(qc.flight.opts.Architecture, "net", "netdev=eth0"))
 
 	plog.Debugf("NewMachine: %q", qmCmd)
 

@@ -33,8 +33,8 @@ const (
 // Options contains QEMU-specific options for the flight.
 type Options struct {
 	// DiskImage is the full path to the disk image to boot in QEMU.
-	DiskImage string
-	Board     string
+	DiskImage    string
+	Architecture string
 
 	// BIOSImage is name of the BIOS file to pass to QEMU.
 	// It can be a plain name, or a full path.
@@ -70,10 +70,7 @@ func NewFlight(opts *Options) (platform.Flight, error) {
 		diskImagePath: opts.DiskImage,
 	}
 
-	if opts.Distribution != "cl" {
-		// don't apply CL-specific mangling
-		opts.UseVanillaImage = true
-	}
+	opts.UseVanillaImage = true
 	if !opts.UseVanillaImage {
 		info, err := util.GetImageInfo(opts.DiskImage)
 		if err != nil {

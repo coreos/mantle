@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -29,28 +28,10 @@ import (
 	"github.com/coreos/pkg/capnslog"
 	"google.golang.org/api/storage/v1"
 
-	"github.com/coreos/mantle/system"
 	"github.com/coreos/mantle/util"
 )
 
-const (
-	urlHost = "storage.googleapis.com"
-	urlPath = "/builds.developer.core-os.net/sdk"
-)
-
 var plog = capnslog.NewPackageLogger("github.com/coreos/mantle", "sdk")
-
-func TarballName(version string) string {
-	arch := system.PortageArch()
-	return fmt.Sprintf("coreos-sdk-%s-%s.tar.bz2", arch, version)
-}
-
-func TarballURL(version string) string {
-	arch := system.PortageArch()
-	p := path.Join(urlPath, arch, version, TarballName(version))
-	u := url.URL{Scheme: "https", Host: urlHost, Path: p}
-	return u.String()
-}
 
 func DownloadFile(file, fileURL string, client *http.Client) error {
 	plog.Infof("Downloading %s to %s", fileURL, file)
@@ -171,37 +152,6 @@ func downloadFile(file, url string, client *http.Client) error {
 	}
 }
 
-func DownloadSignedFile(file, url string, client *http.Client, verifyKeyFile string) error {
-
-	if _, err := os.Stat(file + ".sig"); err == nil {
-		if e := VerifyFile(file, verifyKeyFile); e == nil {
-			plog.Infof("Verified existing file: %s", file)
-			return nil
-		}
-	}
-
-	if err := DownloadFile(file, url, client); err != nil {
-		return err
-	}
-
-	if err := DownloadFile(file+".sig", url+".sig", client); err != nil {
-		return err
-	}
-
-	if err := VerifyFile(file, verifyKeyFile); err != nil {
-		return err
-	}
-
-	plog.Infof("Verified file: %s", file)
-	return nil
-}
-
-func DownloadSDK(version, verifyKeyFile string) error {
-	tarFile := filepath.Join(RepoCache(), "sdks", TarballName(version))
-	tarURL := TarballURL(version)
-	return DownloadSignedFile(tarFile, tarURL, nil, verifyKeyFile)
-}
-
 // false if both files do not exist
 func cmpFileBytes(file1, file2 string) (bool, error) {
 	info1, err := os.Stat(file1)
@@ -287,35 +237,5 @@ func UpdateFile(file, url string, client *http.Client) error {
 	if err := os.Rename(tempFile, file); err != nil {
 		return err
 	}
-	return nil
-}
-
-// UpdateSignedFile will download and replace the local file if the
-// published signature doesn't match the local copy. Leave client nil to
-// use default.
-func UpdateSignedFile(file, url string, client *http.Client, verifyKeyFile string) error {
-	sigFile := file + ".sig"
-	sigURL := url + ".sig"
-
-	// update local sig to latest
-	if err := UpdateFile(sigFile, sigURL, client); err != nil {
-		return err
-	}
-
-	// try to verify with latest sig
-	if e := VerifyFile(file, verifyKeyFile); e == nil {
-		plog.Infof("Verified existing file: %s", file)
-		return nil
-	}
-
-	// download image and try to verify again
-	if err := UpdateFile(file, url, client); err != nil {
-		return err
-	}
-	if err := VerifyFile(file, verifyKeyFile); err != nil {
-		return err
-	}
-
-	plog.Infof("Verified file: %s", file)
 	return nil
 }
