@@ -54,6 +54,9 @@ systemd:
 `),
 		Flags:   []register.Flag{register.RequiresInternetAccess}, // network access for hyperkube
 		Distros: []string{"cl"},
+		// tcsd.service can't be effectively disabled from
+		// cloud-config on Packet, and setupCluster() uses one
+		ExcludePlatforms: []string{"packet"},
 	})
 }
 

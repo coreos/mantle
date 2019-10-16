@@ -49,8 +49,10 @@ write_files:
   - path: "/etc/coreos/docker-1.12"
     content: yes
 `),
-		Distros:          []string{"cl"},
-		ExcludePlatforms: []string{"qemu-unpriv"},
+		Distros: []string{"cl"},
+		// tcsd.service can't be effectively disabled from
+		// cloud-config on Packet
+		ExcludePlatforms: []string{"qemu-unpriv", "packet"},
 	})
 }
 
