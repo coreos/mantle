@@ -15,6 +15,7 @@
 package platform
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -395,7 +396,8 @@ func setupIgnition(confPath string, diskImagePath string) error {
 	// Using libvirt can lead to permission denied issues if it does not have access
 	// rights to the qcow image
 	os.Setenv("LIBGUESTFS_BACKEND", "direct")
-	cmd := exec.Command("guestfish", "--listen", "-a", diskImagePath)
+	cmd := exec.Command("guestfish", "--listen", "--keys-from-stdin", "--key", "/dev/sda4:file:/dev/null", "-a", diskImagePath)
+	cmd.Stdin = bytes.NewBuffer([]byte("nokey"))
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("getting stdout pipe: %v", err)
@@ -440,6 +442,17 @@ func setupIgnition(confPath string, diskImagePath string) error {
 		return fmt.Errorf("guestfish command failed to find boot label: %v", err)
 	}
 
+	fstype, err := findFsType("/dev/sda4", pid)
+	if err != nil {
+		return fmt.Errorf("guestfish command failed to find fs type: %v", err)
+	}
+	if fstype == "crypto_LUKS" {
+		cmd := exec.Command("guestfish", remote, "luks-open", "/dev/sda4", "luks-00000000-0000-4000-a000-000000000002")
+		if lukserr := cmd.Run(); lukserr != nil {
+			return fmt.Errorf("guestfish command failed to execute luks-open: %v", lukserr)
+		}
+	}
+
 	rootfs, err := findLabel("root", pid)
 	if err != nil {
 		return fmt.Errorf("guestfish command failed to find root label: %v", err)
@@ -465,6 +478,24 @@ func setupIgnition(confPath string, diskImagePath string) error {
 		return fmt.Errorf("guestfish umount failed: %v", err)
 	}
 	return nil
+}
+
+// findFsType finds the filesystem type to see if it is a luks partition or a regular root partition.
+func findFsType(rootpart, pid string) (string, error) {
+	if pid == "" {
+		return "", fmt.Errorf("The pid cannot be empty")
+	}
+	if rootpart == "" {
+		return "", fmt.Errorf("The root partition string cannot be empty")
+	}
+
+	remote := fmt.Sprintf("--remote=%s", pid)
+	cmd := exec.Command("guestfish", remote, "vfs-type", rootpart)
+	stdout, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("get stdout for vfs-type failed: %v", err)
+	}
+	return strings.TrimSpace(string(stdout)), nil
 }
 
 // findLabel finds the partition based on the label. The partition belongs to the image attached to the guestfish instance identified by pid.
