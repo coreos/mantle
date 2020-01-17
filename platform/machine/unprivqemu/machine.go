@@ -76,6 +76,7 @@ func (m *machine) Destroy() {
 	}
 
 	m.qc.DelMach(m)
+	m.qc.flight.ReleaseMachineReservation()
 }
 
 func (m *machine) ConsoleOutput() string {

@@ -110,6 +110,13 @@ func (qc *Cluster) NewMachineWithOptions(userdata *conf.UserData, options platfo
 	}
 	builder.EnableUsermodeNetworking(22)
 
+	qc.flight.AcquireMachineReservation()
+	destroyMachine := true
+	defer func() {
+		if destroyMachine {
+			qm.Destroy()
+		}
+	}()
 	inst, err := builder.Exec()
 	if err != nil {
 		return nil, err
@@ -129,10 +136,10 @@ func (qc *Cluster) NewMachineWithOptions(userdata *conf.UserData, options platfo
 	}
 
 	if err := platform.StartMachine(qm, qm.journal); err != nil {
-		qm.Destroy()
 		return nil, err
 	}
 
+	destroyMachine = false
 	qc.AddMach(qm)
 
 	return qm, nil

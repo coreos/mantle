@@ -16,11 +16,13 @@
 package platform
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/coreos/mantle/network"
 )
@@ -28,6 +30,8 @@ import (
 type BaseFlight struct {
 	clusterlock sync.Mutex
 	clustermap  map[string]Cluster
+
+	machineLock *semaphore.Weighted
 
 	name       string
 	platform   Name
@@ -47,13 +51,19 @@ func NewBaseFlightWithDialer(opts *Options, platform Name, ctPlatform string, di
 		return nil, err
 	}
 
+	var machineLock *semaphore.Weighted
+	if opts.MaxMachines != 0 {
+		machineLock = semaphore.NewWeighted(int64(opts.MaxMachines))
+	}
+
 	bf := &BaseFlight{
-		clustermap: make(map[string]Cluster),
-		name:       fmt.Sprintf("%s-%s", opts.BaseName, uuid.New()),
-		platform:   platform,
-		ctPlatform: ctPlatform,
-		baseopts:   opts,
-		agent:      agent,
+		clustermap:  make(map[string]Cluster),
+		name:        fmt.Sprintf("%s-%s", opts.BaseName, uuid.New()),
+		machineLock: machineLock,
+		platform:    platform,
+		ctPlatform:  ctPlatform,
+		baseopts:    opts,
+		agent:       agent,
 	}
 
 	return bf, nil
@@ -87,6 +97,21 @@ func (bf *BaseFlight) DelCluster(c Cluster) {
 	bf.clusterlock.Lock()
 	defer bf.clusterlock.Unlock()
 	delete(bf.clustermap, c.Name())
+}
+
+func (bf *BaseFlight) AcquireMachineReservation() {
+	if bf.machineLock == nil {
+		return
+	}
+	bf.machineLock.Acquire(context.TODO(), 1)
+}
+
+func (bf *BaseFlight) ReleaseMachineReservation() {
+	if bf.machineLock == nil {
+		return
+	}
+	bf.machineLock.Release(1)
+
 }
 
 func (bf *BaseFlight) Keys() ([]*agent.Key, error) {

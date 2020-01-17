@@ -53,6 +53,7 @@ func init() {
 	root.PersistentFlags().StringVarP(&kolaPlatform, "platform", "p", "qemu", "VM platform: "+strings.Join(kolaPlatforms, ", "))
 	root.PersistentFlags().StringVarP(&kola.Options.Distribution, "distro", "b", kolaDistros[0], "Distribution: "+strings.Join(kolaDistros, ", "))
 	root.PersistentFlags().IntVarP(&kola.TestParallelism, "parallel", "j", 1, "number of tests to run in parallel")
+	root.PersistentFlags().IntVarP(&kola.Options.MaxMachines, "max-machines", "", -1, "Maximum number of machines (-1 = 'same as parallel', 0 = unlimited)")
 	sv(&kola.TAPFile, "tapfile", "", "file to write TAP results to")
 	root.PersistentFlags().BoolVarP(&kola.Options.NoTestExitError, "no-test-exit-error", "T", false, "Don't exit with non-zero if tests fail")
 	sv(&kola.Options.BaseName, "basename", "kola", "Cluster name prefix")
@@ -186,6 +187,10 @@ func syncOptions() error {
 			return err
 		}
 		cosaBuild = &tmpBuild
+	}
+
+	if kola.Options.MaxMachines == -1 {
+		kola.Options.MaxMachines = kola.TestParallelism
 	}
 
 	if kola.QEMUOptions.DiskImage == "" {
