@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -343,16 +344,25 @@ func CheckMachine(ctx context.Context, m Machine) error {
 		}
 		out, stderr, err := m.SSH("systemctl is-system-running")
 		if !bytes.Contains([]byte("initializing starting running stopping"), out) {
-			return nil // stop retrying if the system went haywire
+			return fmt.Errorf("machine reached a bad state: %s, %v, %s", out, err, stderr)
 		}
 		if err != nil {
-			return fmt.Errorf("could not check if machine is running: %s: %v: %s", out, err, stderr)
+			if bytes.Contains([]byte("starting"), out) {
+				if jobs, _, err2 := m.SSH("systemctl list-jobs"); err2 == nil {
+					return fmt.Errorf("machine did not finish starting in time. Active jobs:\n%s", string(jobs))
+				}
+			}
+			return fmt.Errorf("machine is not marked running yet: %s: %v: %s", out, err, stderr)
 		}
 		return nil
 	}
 
-	if err := util.Retry(sshRetries, sshTimeout, sshChecker); err != nil {
-		return fmt.Errorf("ssh unreachable: %v", err)
+	shouldRetry := func(e error) bool {
+		return !strings.HasPrefix(e.Error(), "machine reached a bad state")
+	}
+
+	if err := util.RetryConditional(sshRetries, sshTimeout, shouldRetry, sshChecker); err != nil {
+		return fmt.Errorf("machine never became ready: %v", err)
 	}
 
 	out, stderr, err := m.SSH(`. /etc/os-release && echo "$ID-$VARIANT_ID"`)
