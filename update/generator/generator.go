@@ -17,7 +17,9 @@ package generator
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
+	"math"
 	"os"
 
 	"github.com/coreos/pkg/capnslog"
@@ -65,6 +67,10 @@ func (g *Generator) Partition(proc *Procedure) error {
 		return ErrProcedureExists
 	}
 
+	if err := checkBlockAlignment(proc); err != nil {
+		return err
+	}
+
 	g.AddCloser(proc)
 	g.manifest.PartitionOperations = proc.Operations
 	g.manifest.OldPartitionInfo = proc.OldInfo
@@ -73,11 +79,49 @@ func (g *Generator) Partition(proc *Procedure) error {
 	return nil
 }
 
+// sanity check for block alignment in partitions.
+func checkBlockAlignment(proc *Procedure) error {
+	if proc.OldInfo.GetSize()%BlockSize != 0 {
+		return fmt.Errorf("generator: old size %d not divisble by %d",
+			proc.OldInfo.Size, BlockSize)
+	}
+	if proc.NewInfo.GetSize()%BlockSize != 0 {
+		return fmt.Errorf("generator: new size %d not divisble by %d",
+			proc.NewInfo.Size, BlockSize)
+	}
+	return nil
+}
+
+func (g *Generator) Kernel(proc *Procedure) error {
+	proc.Type = metadata.InstallProcedure_KERNEL.Enum()
+	return g.addProc(proc)
+}
+
+func (g *Generator) addProc(proc *Procedure) error {
+	for _, other := range g.manifest.Procedures {
+		if *other.Type == *proc.Type {
+			return ErrProcedureExists
+		}
+	}
+
+	g.AddCloser(proc)
+	g.manifest.Procedures = append(g.manifest.Procedures,
+		&proc.InstallProcedure)
+	g.payloads = append(g.payloads, proc)
+
+	return nil
+}
+
 // Write finalizes the payload, writing it out to the given file path.
 func (g *Generator) Write(path string) (err error) {
+	g.manifest.BlockSize = proto.Uint32(BlockSize)
+
 	if err = g.updateOffsets(); err != nil {
 		return
 	}
+
+	// for compatibility with old update_engine versions
+	g.addNoops()
 
 	plog.Infof("Writing payload to %s", path)
 
@@ -136,6 +180,61 @@ func (g *Generator) updateOffsets() error {
 	g.manifest.SignaturesOffset = proto.Uint64(uint64(offset))
 	g.manifest.SignaturesSize = proto.Uint64(uint64(sigSize))
 	return err
+}
+
+// The sparse hole was a feature of update_engine, it is not used
+// in this new code outside of the noop compatibility goo.
+const sparseHole = math.MaxUint64
+
+// Translate a normal install operation to a dummy that discards data.
+func opToNoop(op *metadata.InstallOperation) *metadata.InstallOperation {
+	blocks := (uint64(*op.DataLength) + BlockSize - 1) / BlockSize
+	sum := make([]byte, len(op.DataSha256Hash))
+	copy(sum, op.DataSha256Hash)
+
+	return &metadata.InstallOperation{
+		Type:           metadata.InstallOperation_REPLACE.Enum(),
+		DataOffset:     proto.Uint32(*op.DataOffset),
+		DataLength:     proto.Uint32(*op.DataLength),
+		DataSha256Hash: sum,
+		DstExtents: []*metadata.Extent{&metadata.Extent{
+			StartBlock: proto.Uint64(sparseHole),
+			NumBlocks:  proto.Uint64(blocks),
+		}},
+	}
+}
+
+// Fill in the dummy noop_operations list for compatibility with old
+// update_engine versions that didn't support procedures and handled
+// signature data weirdly.
+func (g *Generator) addNoops() {
+	// Translate the new procedures list to noop operations.
+	for _, proc := range g.manifest.Procedures {
+		for _, op := range proc.Operations {
+			if op.GetDataLength() == 0 {
+				continue
+			}
+
+			g.manifest.NoopOperations = append(
+				g.manifest.NoopOperations, opToNoop(op))
+		}
+	}
+
+	// Create a dummy noop operation to cover trailing signature data.
+	// Yes, the manifest inconsistently uses 32 and 64 bit values...
+	offset := uint32(*g.manifest.SignaturesOffset)
+	length := uint32(*g.manifest.SignaturesSize)
+	blocks := (*g.manifest.SignaturesSize + BlockSize - 1) / BlockSize
+	g.manifest.NoopOperations = append(g.manifest.NoopOperations,
+		&metadata.InstallOperation{
+			Type:       metadata.InstallOperation_REPLACE.Enum(),
+			DataOffset: proto.Uint32(offset),
+			DataLength: proto.Uint32(length),
+			DstExtents: []*metadata.Extent{&metadata.Extent{
+				StartBlock: proto.Uint64(sparseHole),
+				NumBlocks:  proto.Uint64(blocks),
+			}},
+		})
 }
 
 func (g *Generator) writeHeader(w io.Writer) error {
