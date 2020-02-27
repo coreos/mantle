@@ -106,57 +106,66 @@ func (a *API) CreateInstances(name, keyname, userdata string, count uint64) ([]*
 		return nil, fmt.Errorf("error resolving vpc: %v", err)
 	}
 
-	subnetId, err := a.getSubnetID(vpcId)
+	subnetIds, err := a.getSubnetIDs(vpcId)
 	if err != nil {
-		return nil, fmt.Errorf("error resolving subnet: %v", err)
+		return nil, fmt.Errorf("error resolving subnets: %v", err)
 	}
 
 	key := &keyname
 	if keyname == "" {
 		key = nil
 	}
-	inst := ec2.RunInstancesInput{
-		ImageId:          &a.opts.AMI,
-		MinCount:         &cnt,
-		MaxCount:         &cnt,
-		KeyName:          key,
-		InstanceType:     &a.opts.InstanceType,
-		SecurityGroupIds: []*string{&sgId},
-		SubnetId:         &subnetId,
-		UserData:         ud,
-		IamInstanceProfile: &ec2.IamInstanceProfileSpecification{
-			Name: &a.opts.IAMInstanceProfile,
-		},
-		TagSpecifications: []*ec2.TagSpecification{
-			&ec2.TagSpecification{
-				ResourceType: aws.String(ec2.ResourceTypeInstance),
-				Tags: []*ec2.Tag{
-					&ec2.Tag{
-						Key:   aws.String("Name"),
-						Value: aws.String(name),
-					},
-					&ec2.Tag{
-						Key:   aws.String("CreatedBy"),
-						Value: aws.String("mantle"),
+
+	var reservations *ec2.Reservation
+
+	for _, subnetId := range subnetIds {
+		inst := ec2.RunInstancesInput{
+			ImageId:          &a.opts.AMI,
+			MinCount:         &cnt,
+			MaxCount:         &cnt,
+			KeyName:          key,
+			InstanceType:     &a.opts.InstanceType,
+			SecurityGroupIds: []*string{&sgId},
+			SubnetId:         &subnetId,
+			UserData:         ud,
+			IamInstanceProfile: &ec2.IamInstanceProfileSpecification{
+				Name: &a.opts.IAMInstanceProfile,
+			},
+			TagSpecifications: []*ec2.TagSpecification{
+				&ec2.TagSpecification{
+					ResourceType: aws.String(ec2.ResourceTypeInstance),
+					Tags: []*ec2.Tag{
+						&ec2.Tag{
+							Key:   aws.String("Name"),
+							Value: aws.String(name),
+						},
+						&ec2.Tag{
+							Key:   aws.String("CreatedBy"),
+							Value: aws.String("mantle"),
+						},
 					},
 				},
 			},
-		},
+		}
+
+		err = util.RetryConditional(5, 5*time.Second, func(err error) bool {
+			// due to AWS' eventual consistency despite ensuring that the IAM Instance
+			// Profile has been created it may not be available to ec2 yet.
+			if awsErr, ok := err.(awserr.Error); ok && (awsErr.Code() == "InvalidParameterValue" && strings.Contains(awsErr.Message(), "iamInstanceProfile.name")) {
+				return true
+			}
+			return false
+		}, func() error {
+			var ierr error
+			reservations, ierr = a.ec2.RunInstances(&inst)
+			return ierr
+		})
+
+		if err == nil {
+			break
+		}
 	}
 
-	var reservations *ec2.Reservation
-	err = util.RetryConditional(5, 5*time.Second, func(err error) bool {
-		// due to AWS' eventual consistency despite ensuring that the IAM Instance
-		// Profile has been created it may not be available to ec2 yet.
-		if awsErr, ok := err.(awserr.Error); ok && (awsErr.Code() == "InvalidParameterValue" && strings.Contains(awsErr.Message(), "iamInstanceProfile.name")) {
-			return true
-		}
-		return false
-	}, func() error {
-		var ierr error
-		reservations, ierr = a.ec2.RunInstances(&inst)
-		return ierr
-	})
 	if err != nil {
 		return nil, fmt.Errorf("error running instances: %v", err)
 	}

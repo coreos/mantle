@@ -304,8 +304,8 @@ func (a *API) createSubnets(vpcId, routeTableId string) error {
 	return nil
 }
 
-// getSubnetID gets a subnet for the given VPC.
-func (a *API) getSubnetID(vpc string) (string, error) {
+// getSubnetIDs gets the subnets for the given VPC.
+func (a *API) getSubnetIDs(vpc string) ([]string, error) {
 	subIds, err := a.ec2.DescribeSubnets(&ec2.DescribeSubnetsInput{
 		Filters: []*ec2.Filter{
 			{
@@ -315,14 +315,21 @@ func (a *API) getSubnetID(vpc string) (string, error) {
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("unable to get subnets for vpc %v: %v", vpc, err)
+		return nil, fmt.Errorf("unable to get subnets for vpc %v: %v", vpc, err)
 	}
+
+	var ids []string
+
 	for _, id := range subIds.Subnets {
 		if id.SubnetId != nil {
-			return *id.SubnetId, nil
+			ids = append(ids, *id.SubnetId)
 		}
 	}
-	return "", fmt.Errorf("no subnets found for vpc %v", vpc)
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("no subnets found for vpc %v", vpc)
+	}
+
+	return ids, nil
 }
 
 // getVPCID gets a VPC for the given security group
