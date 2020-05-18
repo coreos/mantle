@@ -83,16 +83,6 @@ var (
 				"us-gov-east-1",
 			},
 		},
-		awsPartitionSpec{
-			Name:         "AWS China",
-			Profile:      "china",
-			Bucket:       "coreos-prod-ami-import-cn-north-1",
-			BucketRegion: "cn-north-1",
-			Regions: []string{
-				"cn-north-1",
-				"cn-northwest-1",
-			},
-		},
 	}
 	specs = map[string]channelSpec{
 		"user": channelSpec{
