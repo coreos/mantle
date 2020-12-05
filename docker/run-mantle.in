@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+
+set -e
+
+: ${DOCKER_TAG:="@DOCKER_TAG@"}
+
+usage () {
+	echo "$(basename $0) - Runs mantle programs in a ${DOCKER_TAG} container." >&2
+	echo "Usage: $(basename $0) [flags] {--} <mantle command>" >&2
+	echo "Option flags:" >&2
+	echo "  -d --dry-run    - Do not run docker commands." >&2
+	echo "  -h --help       - Show this help and exit." >&2
+	echo "  -k --kvm        - Run container with kvm privileges." >&2
+	echo "  -p --privileged - Run container as privileged" >&2
+	echo "  -r --root       - Run container as root." >&2
+	echo "  -v --verbose    - Verbose execution." >&2
+	echo "Environment:" >&2
+	echo "  DOCKER_ARGS     - Extra docker args - Default: '${DOCKER_ARGS}'" >&2
+	echo "  DOCKER_TAG      - Default: '${DOCKER_TAG}'" >&2
+}
+
+short_opts="+dhkprv"
+long_opts="dry-run,help,kvm,privileged,root,verbose"
+
+opts=$(getopt --options ${short_opts} --long ${long_opts} -n "${name}" -- "${@}")
+
+if [ $? != 0 ]; then
+	echo "${name}: Terminating..." >&2 
+	exit 1
+fi
+
+eval set -- "${opts}"
+
+while true ; do
+	case "${1}" in
+	-d | --dry-run)
+		dry_run="--dry-run"
+		shift
+		;;
+	-h | --help)
+		usage
+		exit 0
+		;;
+	-k | --kvm)
+		kvm=1
+		shift
+		;;
+	-p | --privileged)
+		privileged=1
+		shift
+		;;
+	-r | --root)
+		root=1
+		shift
+		;;
+	-v | --verbose)
+		set -x
+		verbose=1
+		shift
+		;;
+	--)
+		shift
+		break
+		;;
+	*)
+		echo "Error: Unknown option '${1}'." >&2
+		usage
+		exit 1
+		;;
+	esac
+done
+
+docker_common_args=" \
+	-v $(pwd):/opt/mantle-runner \
+	-w /opt/mantle-runner
+"
+
+docker_user_args=" \
+	--user $(id -u):$(id -g) \
+	-v /etc/group:/etc/group:ro \
+	-v /etc/passwd:/etc/passwd:ro \
+"
+
+docker_kvm_args=" \
+	--cap-add=SYS_ADMIN \
+	--cap-add=NET_ADMIN \
+	--device=/dev/kvm:/dev/kvm \
+	--device=/dev/net:/dev/net \
+	--net=host \
+"
+
+docker_privileged_args=" \
+	--privileged \
+	--net=host \
+"
+
+if [[ -n ${privileged} ]]; then
+	docker_args="${docker_common_args} ${docker_privileged_args}"
+elif [[ -n ${kvm} ]]; then
+	docker_args="${docker_common_args} ${docker_kvm_args}"
+elif [[ -n ${root} ]]; then
+	docker_args="${docker_common_args}"
+else
+	docker_args="${docker_common_args} ${docker_user_args}"
+fi
+
+if [[ -z ${dry_run} ]]; then
+	docker run --rm ${docker_args} ${DOCKER_ARGS} ${DOCKER_TAG} ${@}
+fi
